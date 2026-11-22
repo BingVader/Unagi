@@ -1,126 +1,89 @@
-# Desktop Companion & Developer Productivity Suite for VS Code
+# UNAGI ⚡
 
-A complete, production-ready Visual Studio Code extension that brings the productivity tools and animated companion from the desktop app directly into your editor.
+> *"Unagi is a state of total awareness. Only by achieving true Unagi can you be prepared for any danger that may befall you."*
 
-![VS Code Companion](media/companion-icon.svg)
+**UNAGI** is a sleek, distraction-free productivity companion built directly into Visual Studio Code. It keeps you in a state of total awareness by tracking your active **Sprints**, **Task Checklists**, **Pending Reminders**, **Scratchpad Notes**, and **Deep Work Focus Timer** without leaving your editor.
+
+![UNAGI](media/companion-icon.svg)
 
 ---
 
-## 🚀 Key Features
+## ⚡ Key Features
 
-### 1. 🍅 Pomodoro Clock & Focus Cycles
-- **Presets**: 25m Focus (5m break), 50m Deep Focus (10m break), 15m Sprint (3m break), and 1m quick demo.
-- **Rounds Visual**: 4-round cycle tracking with visual dot indicators.
-- **Companion States**: The companion sits quietly beside you during **Focus** time, stretches with you during **Break** time, and celebrates upon completion.
-- **Status Bar Integration**: Live countdown and mode indicator in the VS Code status bar (`$(clock) 24:59 [Focus]`).
-- **Audio Chimes**: Gentle Web Audio API synthesizer chimes at session transitions.
+### 1. 🕒 Real-Time Clock & Header
+- **Live Digital Clock**: Real-time `HH:MM:SS AM/PM` digital time display and date ticker (`Sun, Nov 22, 2026`) pinned at the top.
+- **Timer Countdown Pill**: Displays your active focus/break countdown timer right in the header for glanceable awareness.
 
-### 2. 💧 Hydration Tracker & Drink Water Reminders
-- **Periodic Alerts**: Configurable reminder interval (default 45 minutes) via VS Code toast notifications and buddy speech bubbles.
-- **Interactive Glasses**: 8-glass daily progress row with click-to-log animation.
-- **1-Click Logger**: Quick logging via "+1 Glass" button, status bar item, or command palette (`companion.logWater`).
-- **Goal Tracking**: Shows glasses drank vs daily goal (default 8 glasses).
+### 2. 🏃 Sprints & Interactive Task Checklists
+- **Sprint Goals & Progress**: Track your active sprint title and duration dates with an auto-updating percentage progress bar (`75% Complete (3/4)`).
+- **One-Click Checklist**: Toggle task status seamlessly:
+  - `☐ Todo` ➔ `⏳ In Progress` ➔ `☑ Done` (strikes through completed tasks).
+- **Priority Indicators**: Categorize tasks by urgency (`🔴 High`, `🟡 Medium`, `🟢 Low`).
+- **Fast Task Input**: Quick input box with priority selector and Enter-key submission.
+- **Filter Chips**: Filter task views instantly: `All`, `Pending`, or `Completed`.
+- **Task Deletion**: Easy one-click deletion (`✕`).
 
-### 3. 🏃 Sprints & Task Tracker
-- **Sprint Goals**: Tracks current sprint name and date boundaries.
-- **Dynamic Progress Bar**: Auto-calculates completion percentage as tasks are toggled.
-- **Interactive Checklist**: Tasks with priority tags (🔴 High, 🟡 Medium, ⚪ Low) and states (☐ Todo → ⏳ In Progress → ☑ Done).
-- **Celebration Reaction**: Completing tasks triggers celebration animations and dialogue.
+### 3. ⚠️ Task Reminders & Deadline Alerts
+- **Visual Alert Banner**: Automatically flags high-priority pending sprint tasks at the top of your checklist.
+- **Periodic Background Reminders**: Configurable background notification reminders alert you when high-priority tasks are waiting for your attention, complete with a one-click button to open UNAGI.
 
-### 4. 📅 6-Week Interactive Calendar
-- **Full Month Grid**: 42-day 6-week layout with previous/next month navigation.
-- **Categorized Milestones**: Track Sprints, Deadlines, Meetings, and Milestones with colored dots.
-- **Selected Day Inspector**: Click any calendar day to inspect and add scheduled events.
+### 4. 📝 Scratchpad Notes
+- **Instant Developer Notepad**: A dedicated scratchpad for jotting down ideas, code snippets, meeting logs, and quick thoughts.
+- **Continuous Auto-Save**: Automatically persists notes to VS Code storage as you type (no save button needed).
+- **Formatting Quick Tools**: One-click insertions for:
+  - `[ ] Task` — Checkbox list item
+  - `• Bullet` — Bulleted list item
+  - `Code` — Formatted TypeScript/code block
+  - `## Heading` — Markdown heading
+- **Copy & Clear**: Quick `📋 Copy to Clipboard` button and `✕ Clear` action.
+- **Live Word & Character Counter**: Tracks text volume in real time.
 
-### 5. ⭐ Habits Tracker & Streaks
-- **Daily Habits**: Track habits such as drinking water, deep work focus, posture stretching, and reading documentation.
-- **Weekly Checkboxes**: Mon–Sun completion indicators with running streak counters (🔥 7d).
-
-### 6. 🎭 Meme & Cultural Characters
-- **Mohanlal (Lalettan)**: Signature tilted shoulder swagger walk, aviator Ray-Bans, curled moustache, and iconic Malayalam dialogue (*"Po mone Dinesha, let's get to work! 🕶️"*).
-- **CJ (Carl Johnson - GTA San Andreas)**: White tank top, blue jeans, sneakers, West Coast swagger, and classic dialogue (*"Ah shit, here we go again. Focus time! 🍅"*).
-- **Cute Dog**: Desktop companion dog with wagging tail and happy jump reactions.
-- **Cartoon Cat (Tom)**: Gray cartoon cat with whisker bobs and catnap stretches.
-- **Hero Kid**: Ben 10 style hero ready for sprint missions.
-- **Ranger Hero**: Red Power Ranger on productivity watch.
-- **Doge (Shiba Inu)**: Classic meme icon (*"Much code, very developer, such wow! 🐕"*).
-- **Pepe the Frog**: Expressive meme reactions (*"Feels good man. Ready to code. 🐸"*).
-- **Chill Capybara**: Ultra-calm capybara with signature yuzu fruit on head (*"Okay I pull up. Super chill coding today. 🍊"*).
-- **Custom Picture Upload**: Upload any personal image or avatar (PNG, JPG, GIF, WebP, SVG).
-
-### 7. 🕹️ Dual Visual Styles
-- **🕹️ Pixelated Mode**: Retro 16-bit crisp pixel art rendering with sharp edges.
-- **✨ HD / Smooth Vector Mode**: Clean, high-definition smooth vector illustrations.
-
-### 8. 👑 Wearable Accessories
-- Customize any character with accessories anchored to their head:
-  - 🥳 Party Hat
-  - 👑 Royal Crown
-  - 🧙 Wizard Hat
-  - ⭐ Golden Star
-  - 🌸 Sakura Flower
-  - 🎀 Red Bow
-  - 😇 Angel Halo
-  - 🎅 Santa Hat
-
-### 9. 💬 Speech Bubble & VS Code Event Reactivity
-- **Interactive Speech Bubble**: Event-driven dialogues tailored to each character.
-- **Typing Activity**: Companion walks or runs proportional to typing burst intensity in your code.
-- **File Saves**: Triggers celebratory jump animations.
-- **Diagnostic Errors**: Companion reacts when active editor error count increases.
-- **Terminal Task Process**: Reacts to build results (success celebration vs error concern).
-- **Petting**: Click directly on your companion to give them a pet and trigger a happy reaction.
-
-### 10. 🖥️ Multiple View Modes
-- **Sidebar Activity Bar**: Compact view in the custom Companion activity bar icon.
-- **Bottom Panel View**: Dockable alongside Terminal, Output, and Problems.
-- **Explorer View**: Accessible from the Explorer tree.
-- **Full-Page Dashboard**: Run `companion.openFullPage` (or click ⤢) to open the full editor tab dashboard.
+### 5. ⏱️ Focus Clock & Deep Flow Timer
+- **Large Digital Countdown**: Clean, modern digital timer display designed for deep work flow.
+- **Smart Session Cycling**: Automatically cycles between **Focus Sessions** and **Break Times** with audio chimes and completion alerts.
+- **Quick Presets**:
+  - `⚡ 25m Unagi Focus` (Standard flow session)
+  - `🧠 50m Deep Flow` (Extended deep work session)
+  - `🏃 15m Sprint` (Rapid bug-fix or triage sprint)
+  - `☕ 5m Break` (Mindful rest and stretch)
+- **Status Bar Integration**: Live timer and task progress display in the VS Code status bar (`⚡ UNAGI: $(play) 25:00 | $(checklist) 3/4`).
 
 ---
 
 ## ⌨️ Commands
 
-| Command | Title |
-|---|---|
-| `companion.focus` | Focus Companion Sidebar View |
-| `companion.openFullPage` | Open Full Page Productivity Dashboard |
-| `companion.startPomodoro` | Start / Pause Pomodoro Timer |
-| `companion.logWater` | Log Glass of Water (+1) |
-| `companion.selectCharacter` | Choose Character (Mohanlal, CJ, Doge, etc.) |
-| `companion.uploadPicture` | Upload Custom Picture / Avatar |
-| `companion.toggleSleep` | Toggle Sleep Mode |
-| `companion.triggerCelebrate` | Trigger Celebration Animation |
+Access these commands anytime from the VS Code Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
+
+| Command | Title | Description |
+|---|---|---|
+| `unagi.focus` | `UNAGI: Open Sprints, Notes & Timer` | Opens and focuses the UNAGI sidebar view. |
+| `unagi.addTask` | `UNAGI: Quick Add Sprint Task` | Quickly adds a sprint task with priority from the command prompt. |
+| `unagi.toggleTimer` | `UNAGI: Start / Pause Focus Timer` | Starts or pauses the active focus countdown timer. |
 
 ---
 
 ## ⚙️ Extension Settings
 
-- `companion.character`: Select companion model (`mohanlal`, `cj`, `dog`, `tom`, `hero`, `ranger`, `doge`, `pepe`, `capybara`, `custom`).
-- `companion.accessory`: Choose wearable accessory (`party-hat`, `crown`, `wizard`, `star`, `flower`, `bow`, `halo`, `santa`, or `null`).
-- `companion.styleMode`: Rendering style (`pixel` or `hd`).
-- `companion.pomodoroFocusMinutes`: Focus session length (default: 25).
-- `companion.pomodoroBreakMinutes`: Break duration (default: 5).
-- `companion.waterIntervalMinutes`: Hydration reminder interval in minutes (default: 45).
-- `companion.waterDailyGoal`: Daily hydration goal in glasses (default: 8).
-- `companion.scale`: Pixel scale multiplier (1 to 4).
-- `companion.reactToErrors`: Toggle reactions to diagnostic errors (default: true).
-- `companion.inactivityTimeoutSeconds`: Inactivity seconds before falling asleep (default: 60).
+Configure UNAGI to match your preferred working rhythm in VS Code Settings (`Ctrl+,` / `Cmd+,` ➔ search `UNAGI`):
+
+- `unagi.focusMinutes` *(number, default: `25`)*: Default focus timer duration in minutes.
+- `unagi.reminderIntervalMinutes` *(number, default: `30`)*: Interval (in minutes) for checking and notifying about pending high-priority sprint tasks.
+- `unagi.enableTaskReminders` *(boolean, default: `true`)*: Toggle periodic notification reminders for pending tasks.
 
 ---
 
-## 🛠️ Development & Running
+## 🛠️ Development & Building
 
-1. **Install dependencies**:
+To run and debug the extension locally:
+
+1. Clone or open the repository folder in VS Code.
+2. Install dependencies:
    ```bash
    npm install
    ```
-
-2. **Compile TypeScript**:
+3. Compile TypeScript:
    ```bash
    npm run compile
    ```
-
-3. **Launch in VS Code**:
-   - Press `F5` in VS Code to open an **Extension Development Host** window.
-   - Click the Companion icon in the Activity Bar or press `Ctrl+Shift+P` / `Cmd+Shift+P` and run **Pixel Companion: Open Full Page (Dashboard)**.
+4. Press **`F5`** to launch the **Extension Development Host**.
+5. Click the **UNAGI (⚡)** icon in the Activity Bar to achieve total awareness!
