@@ -1,0 +1,66 @@
+{
+    "idle":  {
+                 "file":  "strips/idle.png",
+                 "frames":  1,
+                 "w":  73,
+                 "h":  130,
+                 "frameMs":  1000,
+                 "loop":  true
+             },
+    "walk":  {
+                 "file":  "strips/walk.png",
+                 "frames":  19,
+                 "w":  73,
+                 "h":  130,
+                 "frameMs":  83,
+                 "loop":  true
+             },
+    "alert":  {
+                  "file":  "strips/alert.png",
+                  "frames":  48,
+                  "w":  73,
+                  "h":  130,
+                  "frameMs":  83,
+                  "loop":  true
+              },
+    "angry":  {
+                  "file":  "strips/angry.png",
+                  "frames":  36,
+                  "w":  73,
+                  "h":  130,
+                  "frameMs":  83,
+                  "loop":  true
+              },
+    "happy":  {
+                  "file":  "strips/happy.png",
+                  "frames":  48,
+                  "w":  73,
+                  "h":  130,
+                  "frameMs":  83,
+                  "loop":  true
+              },
+    "drag":  {
+                 "file":  "strips/drag.png",
+                 "frames":  36,
+                 "w":  73,
+                 "h":  130,
+                 "frameMs":  84,
+                 "loop":  true
+             },
+    "fall":  {
+                 "file":  "strips/fall.png",
+                 "frames":  48,
+                 "w":  73,
+                 "h":  130,
+                 "frameMs":  83,
+                 "loop":  false
+             },
+    "land":  {
+                 "file":  "strips/land.png",
+                 "frames":  44,
+                 "w":  73,
+                 "h":  130,
+                 "frameMs":  84,
+                 "loop":  false
+             }
+}

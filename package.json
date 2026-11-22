@@ -45,6 +45,36 @@
         "category": "UNAGI"
       },
       {
+        "command": "unagi.openInEditor",
+        "title": "UNAGI: Open in Editor Tab (more room for your companion)",
+        "category": "UNAGI"
+      },
+      {
+        "command": "unagi.toggleCompanion",
+        "title": "UNAGI: Show / Hide Companion",
+        "category": "UNAGI"
+      },
+      {
+        "command": "unagi.chooseCharacter",
+        "title": "UNAGI: Choose Companion Character",
+        "category": "UNAGI"
+      },
+      {
+        "command": "unagi.createCharacter",
+        "title": "UNAGI: Create Custom Character from a Photo",
+        "category": "UNAGI"
+      },
+      {
+        "command": "unagi.deleteCharacter",
+        "title": "UNAGI: Delete a Custom Character",
+        "category": "UNAGI"
+      },
+      {
+        "command": "unagi.toggleDesktopCompanion",
+        "title": "UNAGI: Toggle Desktop Companion (roams your whole screen)",
+        "category": "UNAGI"
+      },
+      {
         "command": "unagi.addTask",
         "title": "UNAGI: Quick Add Sprint Task",
         "category": "UNAGI",
@@ -74,6 +104,31 @@
           "maximum": 120,
           "description": "Interval (in minutes) for checking pending high-priority sprint task reminders."
         },
+        "unagi.companion.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the roaming companion character that delivers alerts and task notifications."
+        },
+        "unagi.companion.movement": {
+          "type": "string",
+          "default": "free",
+          "enum": ["free", "floor"],
+          "enumDescriptions": [
+            "Roam everywhere: across the whole view or screen, perching on things.",
+            "Walk left and right along the floor, like a character in a side-scrolling game."
+          ],
+          "description": "How the companion moves around."
+        },
+        "unagi.desktopCompanion.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Let the companion roam your whole screen in a small always-on-top window (Windows only). Very lightweight (~25 MB RAM, near-zero CPU). Replaces the in-view companion while on."
+        },
+        "unagi.companion.character": {
+          "type": "string",
+          "default": "croagunk",
+          "markdownDescription": "Character id of your companion (`croagunk`, `kurta`, or any folder you add under `media/sprites`). Easiest to change with the **UNAGI: Choose Companion Character** command."
+        },
         "unagi.enableTaskReminders": {
           "type": "boolean",
           "default": true,
@@ -86,6 +141,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "sprites": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-sprites.ps1",
     "package": "npx @vscode/vsce package --no-dependencies"
   },
   "devDependencies": {

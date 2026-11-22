@@ -1,7 +1,9 @@
 .vscode/**
 src/**
 **/*.map
-media/sprites/**
+media/sprites/**/*.webp
+media/sprites/**/*.gif
+scripts/**
 media/pokemon/**
 media/characters.js
 media/dialogue.js
