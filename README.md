@@ -4,8 +4,6 @@
 
 **UNAGI** is a sleek, distraction-free productivity companion built directly into Visual Studio Code. It keeps you in a state of total awareness by tracking your active **Sprints**, **Task Checklists**, **Pending Reminders**, **Scratchpad Notes**, and **Deep Work Focus Timer** without leaving your editor.
 
-![UNAGI](media/companion-icon.svg)
-
 ---
 
 ## ⚡ Key Features

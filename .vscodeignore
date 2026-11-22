@@ -1,0 +1,10 @@
+.vscode/**
+src/**
+**/*.map
+media/sprites/**
+media/pokemon/**
+media/characters.js
+media/dialogue.js
+media/buddy.css
+.gitignore
+tsconfig.json
