@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <g fill="currentColor">
+    <!-- Pointed pixel ears -->
+    <rect x="4" y="3" width="3" height="3" />
+    <rect x="17" y="3" width="3" height="3" />
+    <rect x="5" y="4" width="1" height="1" fill-opacity="0.3" />
+    <rect x="18" y="4" width="1" height="1" fill-opacity="0.3" />
+    
+    <!-- Head outline & face -->
+    <rect x="3" y="6" width="18" height="8" />
+    
+    <!-- Pixel eyes (negative space) -->
+    <rect x="6" y="8" width="3" height="3" fill="var(--vscode-sideBar-background, #1e1e1e)" />
+    <rect x="7" y="8" width="1" height="1" />
+    <rect x="15" y="8" width="3" height="3" fill="var(--vscode-sideBar-background, #1e1e1e)" />
+    <rect x="16" y="8" width="1" height="1" />
+    
+    <!-- Cute nose -->
+    <rect x="11" y="11" width="2" height="1" fill="var(--vscode-sideBar-background, #1e1e1e)" />
+    
+    <!-- Body -->
+    <rect x="4" y="14" width="16" height="5" />
+    
+    <!-- Belly patch (negative space) -->
+    <rect x="9" y="14" width="6" height="4" fill-opacity="0.25" />
+    
+    <!-- Paws -->
+    <rect x="5" y="19" width="4" height="2" />
+    <rect x="15" y="19" width="4" height="2" />
+    
+    <!-- Tail -->
+    <rect x="19" y="13" width="2" height="4" />
+    <rect x="20" y="11" width="2" height="3" />
+  </g>
+</svg>

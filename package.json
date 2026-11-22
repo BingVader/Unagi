@@ -1,0 +1,281 @@
+{
+  "name": "vscode-pixel-companion",
+  "displayName": "Pixel Companion - Developer Productivity & Wellness Suite",
+  "description": "Interactive developer companion with Sprint & Calendar tracking, Pomodoro clock, Water reminders, and meme characters (Mohanlal, CJ, Doge, Pepe) in Pixel and HD modes.",
+  "version": "2.0.0",
+  "publisher": "pixel-studio",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/vscode-pixel-companion"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pixel-companion-container",
+          "title": "Pixel Companion",
+          "icon": "media/companion-icon.svg"
+        }
+      ],
+      "panel": [
+        {
+          "id": "pixel-companion-panel-container",
+          "title": "Pixel Companion",
+          "icon": "media/companion-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "pixel-companion-container": [
+        {
+          "type": "webview",
+          "id": "companion.view",
+          "name": "Sprints & Pokémon",
+          "visibility": "visible"
+        }
+      ],
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "companion.view.explorer",
+          "name": "Pixel Companion",
+          "visibility": "collapsed"
+        }
+      ],
+      "pixel-companion-panel-container": [
+        {
+          "type": "webview",
+          "id": "companion.view.panel",
+          "name": "Companion & Productivity",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "companion.focus",
+        "title": "Pixel Companion: Focus View",
+        "category": "Pixel Companion"
+      },
+      {
+        "command": "companion.openBottomPanel",
+        "title": "Pixel Companion: Open in Bottom Panel (Whole Bottom Section)",
+        "category": "Pixel Companion",
+        "icon": "$(layout-panel)"
+      },
+      {
+        "command": "companion.openFullPage",
+        "title": "Pixel Companion: Open Full Page (Dashboard)",
+        "category": "Pixel Companion",
+        "icon": "$(screen-full)"
+      },
+      {
+        "command": "companion.startPomodoro",
+        "title": "Pixel Companion: Toggle Pomodoro Timer",
+        "category": "Pixel Companion",
+        "icon": "$(clock)"
+      },
+      {
+        "command": "companion.logWater",
+        "title": "Pixel Companion: Log Glass of Water (+1)",
+        "category": "Pixel Companion",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "companion.selectCharacter",
+        "title": "Pixel Companion: Choose Character (Mohanlal, CJ, Doge, etc.)",
+        "category": "Pixel Companion",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "companion.uploadPicture",
+        "title": "Pixel Companion: Upload Custom Picture / Avatar",
+        "category": "Pixel Companion",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "companion.toggleSleep",
+        "title": "Pixel Companion: Toggle Sleep Mode",
+        "category": "Pixel Companion"
+      },
+      {
+        "command": "companion.triggerCelebrate",
+        "title": "Pixel Companion: Trigger Celebrate",
+        "category": "Pixel Companion"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "companion.openBottomPanel",
+          "when": "view == companion.view || view == companion.view.explorer",
+          "group": "navigation"
+        },
+        {
+          "command": "companion.startPomodoro",
+          "when": "view == companion.view || view == companion.view.explorer || view == companion.view.panel",
+          "group": "navigation"
+        },
+        {
+          "command": "companion.openFullPage",
+          "when": "view == companion.view || view == companion.view.explorer || view == companion.view.panel",
+          "group": "navigation"
+        },
+        {
+          "command": "companion.selectCharacter",
+          "when": "view == companion.view || view == companion.view.explorer || view == companion.view.panel",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Pixel Companion",
+      "properties": {
+        "companion.character": {
+          "type": "string",
+          "default": "pikachu",
+          "enum": [
+            "pikachu",
+            "charmander",
+            "squirtle",
+            "bulbasaur",
+            "eevee",
+            "gengar",
+            "snorlax",
+            "psyduck",
+            "jigglypuff",
+            "mew",
+            "dog",
+            "tom",
+            "mohanlal",
+            "cj",
+            "custom"
+          ],
+          "enumDescriptions": [
+            "Pikachu - Electric mouse Pokémon with thunderbolt sparks ⚡",
+            "Charmander - Fire lizard Pokémon with flickering tail flame 🔥",
+            "Squirtle - Water turtle Pokémon with water bubbles 💧",
+            "Bulbasaur - Grass Pokémon with seed sprout and vine whip 🍃",
+            "Eevee - Evolution Pokémon with energetic fluffy bounce ✨",
+            "Gengar - Ghost Pokémon with mischievous shadow grin 👻",
+            "Snorlax - Sleepy giant Pokémon with gentle belly naps 💤",
+            "Psyduck - Water duck Pokémon with headache confusion 🌀",
+            "Jigglypuff - Fairy balloon Pokémon with melodious songs 🎵",
+            "Mew - Mythical psychic Pokémon with glowing aura 🌟",
+            "Cute Dog - Loyal desktop puppy",
+            "Cartoon Cat (Tom) - Gray cartoon cat with whiskers",
+            "Mohanlal - Lalettan swagger walk",
+            "CJ (GTA San Andreas) - Ah shit, here we go again",
+            "Custom Picture - User uploaded photo or avatar"
+          ],
+          "description": "Select your companion Pokémon or character model."
+        },
+        "companion.accessory": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "enum": [
+            null,
+            "party-hat",
+            "crown",
+            "wizard",
+            "star",
+            "flower",
+            "bow",
+            "halo",
+            "santa"
+          ],
+          "description": "Accessory worn by the companion (e.g. party-hat, crown, wizard hat, star, flower, etc.)."
+        },
+        "companion.styleMode": {
+          "type": "string",
+          "default": "pixel",
+          "enum": [
+            "pixel",
+            "hd"
+          ],
+          "enumDescriptions": [
+            "Pixelated - Classic retro 16-bit pixel-art canvas rendering",
+            "HD / Smooth - Non-pixelated smooth vector & illustrated rendering"
+          ],
+          "description": "Visual rendering style for characters."
+        },
+        "companion.pomodoroFocusMinutes": {
+          "type": "number",
+          "default": 25,
+          "minimum": 5,
+          "maximum": 120,
+          "description": "Pomodoro focus session duration in minutes."
+        },
+        "companion.pomodoroBreakMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Pomodoro short break duration in minutes."
+        },
+        "companion.waterIntervalMinutes": {
+          "type": "number",
+          "default": 45,
+          "minimum": 15,
+          "maximum": 180,
+          "description": "Minutes between drink water hydration alerts."
+        },
+        "companion.waterDailyGoal": {
+          "type": "number",
+          "default": 8,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Daily hydration goal (number of glasses)."
+        },
+        "companion.scale": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Pixel scale multiplier (1 to 4) for companion rendering."
+        },
+        "companion.reactToErrors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Toggle companion worried reactions when diagnostic errors occur."
+        },
+        "companion.inactivityTimeoutSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 5,
+          "maximum": 3600,
+          "description": "Inactivity duration (in seconds) before the companion falls asleep."
+        },
+        "companion.customPicture": {
+          "type": "string",
+          "default": "",
+          "description": "Base64 data URI or image file path for the custom uploaded character picture."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}
