@@ -2,7 +2,7 @@
   "name": "unagi",
   "displayName": "UNAGI - Sprints, Tasks, Notes & Focus",
   "description": "Achieve total workflow awareness: track active sprints, checklists, reminders, scratchpad notes, and focus timer directly in your sidebar.",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "publisher": "pixel-studio",
   "repository": {
     "type": "git",
@@ -75,6 +75,11 @@
         "category": "UNAGI"
       },
       {
+        "command": "unagi.sayQuote",
+        "title": "UNAGI: Say a Random Quote",
+        "category": "UNAGI"
+      },
+      {
         "command": "unagi.addTask",
         "title": "UNAGI: Quick Add Sprint Task",
         "category": "UNAGI",
@@ -128,6 +133,35 @@
           "type": "string",
           "default": "croagunk",
           "markdownDescription": "Character id of your companion (`croagunk`, `kurta`, or any folder you add under `media/sprites`). Easiest to change with the **UNAGI: Choose Companion Character** command."
+        },
+        "unagi.water.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Remind you to drink water: the companion speaks up and a notification appears."
+        },
+        "unagi.water.intervalMinutes": {
+          "type": "number",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 480,
+          "description": "How often (in minutes) the water reminder appears."
+        },
+        "unagi.quotes.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Let the companion speak a random quote now and then."
+        },
+        "unagi.quotes.intervalMinutes": {
+          "type": "number",
+          "default": 45,
+          "minimum": 1,
+          "maximum": 480,
+          "description": "How often (in minutes) the companion shares a quote."
+        },
+        "unagi.quotes.online": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Fetch fresh quotes from free online sources ([ZenQuotes.io](https://zenquotes.io), then DummyJSON). Only the quote request is sent. Turn off to use the built-in list only."
         },
         "unagi.enableTaskReminders": {
           "type": "boolean",

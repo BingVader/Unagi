@@ -736,6 +736,7 @@ namespace UnagiPet
         double frameAcc, last, nextThink = 4, stateUntil, bubbleUntil, pumpAt = -1;
         float x, y, tx, ty, speed;
         bool faceLeft = true, dragging, down, bubbleShown;
+        float vy;
         bool floorOnly, dropping;   // floorOnly: walk left/right along the bottom of the screen; dropping: falling back to it
         int offX, offY, downX, downY;
         Msg cur;
@@ -984,10 +985,23 @@ namespace UnagiPet
             }
         }
 
+        // Let go above the floor: fall (the fall animation repeats while in the air) until the floor is reached.
         void StartDrop()
         {
             Rectangle wa = Screen.FromPoint(new Point((int)(x + W / 2), (int)(y + H / 2))).WorkingArea;
-            if (y < FloorY(wa) - 2) dropping = true;
+            if (y < FloorY(wa) - 2)
+            {
+                dropping = true; vy = 0;
+                if (look.Has(St.Fall)) Enter(St.Fall); else Enter(St.Idle);
+            }
+        }
+
+        // Reached the floor: use the landing animation if the character has one.
+        void Landed()
+        {
+            dropping = false;
+            if (state == St.Fall || state == St.Idle) Enter(look.Has(St.Land) ? St.Land : St.Idle);
+            nextThink = Math.Max(nextThink, sw.Elapsed.TotalSeconds + 1.5);
         }
 
         // A once-only animation (fall, land) finished.
@@ -1007,11 +1021,12 @@ namespace UnagiPet
             {
                 Rectangle wd = Screen.FromPoint(new Point((int)(x + W / 2), (int)(y + H / 2))).WorkingArea;
                 float floor = FloorY(wd);
-                y = Math.Min(floor, y + 900 * dpi * (float)dt);   // gravity
-                if (y >= floor) dropping = false;
+                vy += 700 * dpi * (float)dt;                     // gravity: starts slow, so the fall is visible
+                y = Math.Min(floor, y + vy * (float)dt);
+                if (y >= floor) Landed();
             }
 
-            if (state == St.Walk && !dragging)
+            if (state == St.Walk && !dragging && !dropping)
             {
                 float dx = tx - x, dy = ty - y;
                 float dist = (float)Math.Sqrt(dx * dx + dy * dy);
@@ -1033,6 +1048,7 @@ namespace UnagiPet
                 if (frame + 1 >= count)
                 {
                     if (look.Loops(state)) frame = 0;
+                    else if (state == St.Fall && dropping) frame = count - 1;    // still falling: hold the last fall frame until the floor
                     else if (state == St.Fall || state == St.Land) AnimDone();
                     else frame = count - 1;
                 }
@@ -1042,7 +1058,7 @@ namespace UnagiPet
             if (cur != null && bubbleShown && now >= bubbleUntil) Dismiss();
             if (pumpAt > 0 && now >= pumpAt) { pumpAt = -1; Pump(); }
             if ((state == St.Sit || state == St.Sleep) && now >= stateUntil) Enter(St.Idle);
-            if (state == St.Idle && cur == null && !dragging && now >= nextThink) Think(now);
+            if (state == St.Idle && cur == null && !dragging && !dropping && now >= nextThink) Think(now);
 
             Draw();
 
@@ -1093,8 +1109,8 @@ namespace UnagiPet
             {
                 dragging = false;
                 nextThink = now + 3;
-                if (floorOnly) StartDrop();                       // let go mid-air: gravity takes him back to the floor
-                Enter(look.Has(St.Fall) ? St.Fall : St.Idle);   // dropped: fall, land, carry on
+                StartDrop();                                      // let go mid-air: fall to the floor, then land
+                if (!dropping) Enter(look.Has(St.Land) ? St.Land : St.Idle);   // already on the floor: just settle
                 Draw();
             }
             else

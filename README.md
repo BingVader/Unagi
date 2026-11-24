@@ -20,6 +20,8 @@
 - **Fast Task Input**: Quick input box with priority selector and Enter-key submission.
 - **Filter Chips**: Filter task views instantly: `All`, `Pending`, or `Completed`.
 - **Task Deletion**: Easy one-click deletion (`✕`).
+- **Multiple Sprints, two types**: Keep **🏡 Personal** and **💼 Work** sprints side by side and switch between them with the sprint tabs (`＋ Sprint` creates one; rename or delete from the sprint card).
+- **🔁 Daily repeating sprints**: Turn on *Repeats daily* and the sprint starts over every morning: all tasks go back to *To do*, and a 🔥 streak counts consecutive days you finished everything. Your companion announces the fresh day.
 
 ### 3. ⚠️ Task Reminders & Deadline Alerts
 - **Visual Alert Banner**: Automatically flags high-priority pending sprint tasks at the top of your checklist.
@@ -50,6 +52,10 @@
 - **A character that lives in UNAGI**: your companion wanders the whole UNAGI view, perching on cards, tabs and the header. Choose who it is (see **Characters** below); Croagunk is the default.
 - **Delivers your alerts**: Walks to the relevant spot and speaks up for high-priority reminders, sprint deadlines (≤ 2 days left), and focus/break completion. Click an alert bubble to jump to the right tab.
 - **Reacts to your tasks**: Celebrates completed tasks and acknowledges new ones.
+- **Landing**: Drop it from mid-air and it falls, then plays its *land* animation the moment it touches the floor (characters with fall/land animations).
+- **Water reminder**: Turn the 💧 reminder on or off and choose the interval (Focus Clock tab, or `unagi.water.*` settings). The companion speaks up and a notification appears.
+- **Random quotes**: Every so often (default 45 min) it shares a quote from people, books and more. Fresh quotes come from the free [ZenQuotes.io](https://zenquotes.io) API (batches of 50, so it stays well under their rate limit), with DummyJSON as a backup and a built-in list when you're offline. No free quote API is truly unlimited, so this pooling keeps it effectively endless. Tune with `unagi.quotes.*`, or run `UNAGI: Say a Random Quote`. Turn `unagi.quotes.online` off to never contact the web.
+- **Customizable dialogue**: In the Companion tab, edit what it says for every situation (greeting, petting, task added/completed, sprint completed, high-priority reminder, sprint ending, water reminder, focus/break finished, new day). Add several lines per scenario and it picks one at random. Placeholders such as `{sprint}`, `{t}`, `{n}` are filled in; *Preview* plays it, *Reset* restores the character's defaults. Dialogue is saved per character.
 - **Interactive**: Click to pet, drag to carry. Respects `prefers-reduced-motion`.
 - **Need more room?** Run `UNAGI: Open in Editor Tab` to give the companion a full editor-sized area to roam.
 
@@ -106,6 +112,8 @@ Configure UNAGI to match your preferred working rhythm in VS Code Settings (`Ctr
 - `unagi.focusMinutes` *(number, default: `25`)*: Default focus timer duration in minutes.
 - `unagi.reminderIntervalMinutes` *(number, default: `30`)*: Interval (in minutes) for checking and notifying about pending high-priority sprint tasks.
 - `unagi.enableTaskReminders` *(boolean, default: `true`)*: Toggle periodic notification reminders for pending tasks.
+- `unagi.water.enabled` *(boolean, default: `true`)*: Remind you to drink water.
+- `unagi.water.intervalMinutes` *(number, default: `60`, 1 to 480)*: Minutes between water reminders.
 - `unagi.companion.enabled` *(boolean, default: `true`)*: Show the in-view roaming companion.
 - `unagi.desktopCompanion.enabled` *(boolean, default: `false`)*: Let the companion roam your whole screen (Windows only).
 - `unagi.companion.character` *(string, default: `croagunk`)*: Id of your companion character. Easiest to change in the sidebar's Companion tab.

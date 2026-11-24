@@ -17,6 +17,18 @@
   const tabPanels = document.querySelectorAll('.tab-panel');
 
   // DOM Elements - Sprints & Tasks
+  const sprintTabs = document.getElementById('sprintTabs');
+  const newSprintBtn = document.getElementById('newSprintBtn');
+  const newSprintForm = document.getElementById('newSprintForm');
+  const newSprintName = document.getElementById('newSprintName');
+  const newSprintType = document.getElementById('newSprintType');
+  const newSprintRepeat = document.getElementById('newSprintRepeat');
+  const createSprintBtn = document.getElementById('createSprintBtn');
+  const cancelSprintBtn = document.getElementById('cancelSprintBtn');
+  const sprintBadge = document.getElementById('sprintBadge');
+  const sprintRepeatBtn = document.getElementById('sprintRepeatBtn');
+  const sprintRenameBtn = document.getElementById('sprintRenameBtn');
+  const sprintDeleteBtn = document.getElementById('sprintDeleteBtn');
   const sprintTitle = document.getElementById('sprintTitle');
   const sprintDates = document.getElementById('sprintDates');
   const sprintProgressFill = document.getElementById('sprintProgressFill');
@@ -46,16 +58,26 @@
   const timerSubtext = document.getElementById('timerSubtext');
   const timerToggleBtn = document.getElementById('timerToggleBtn');
   const timerResetBtn = document.getElementById('timerResetBtn');
-  const presetChips = document.querySelectorAll('.chip');
+  const presetChips = document.querySelectorAll('.preset-chips .chip[data-mins]');
+
+  // DOM Elements - Water reminder
+  const waterEnabled = document.getElementById('waterEnabled');
+  const waterInterval = document.getElementById('waterInterval');
+  const waterHint = document.getElementById('waterHint');
+  const waterChips = document.querySelectorAll('.chip[data-water]');
 
   // Internal State
   let state = {
-    sprint: {
-      name: 'Sprint 14: Core Features',
+    sprints: [{
+      id: 'work-1',
+      name: 'Sprint',
+      type: 'work',
+      repeat: 'none',
       startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
       tasks: []
-    },
+    }],
+    activeSprintId: 'work-1',
     notes: '',
     timer: {
       isRunning: false,
@@ -123,10 +145,77 @@
   // =============================================================
   // 3. SPRINTS & TASKS ENGINE
   // =============================================================
+  const TYPE_META = {
+    personal: { icon: '🏡', label: 'Personal' },
+    work: { icon: '💼', label: 'Work' }
+  };
+
+  function activeSprint() {
+    return state.sprints.find(sp => sp.id === state.activeSprintId) || state.sprints[0];
+  }
+
+  /** Send every sprint (and which one is open) to the extension, which validates and saves them. */
+  function commitSprints() {
+    vscode.postMessage({ command: 'updateSprints', sprints: state.sprints, activeSprintId: state.activeSprintId });
+  }
+
+  function formatSprintDates(sp) {
+    if (sp.repeat === 'daily') {
+      const streak = sp.streak > 0 ? ` · 🔥 ${sp.streak}-day streak` : '';
+      return `Resets every day · today ${sp.startDate}${streak}`;
+    }
+    return `${sp.startDate} ~ ${sp.endDate}`;
+  }
+
+  function renderSprintTabs() {
+    if (!sprintTabs) return;
+    sprintTabs.textContent = '';
+    state.sprints.forEach(sp => {
+      const done = sp.tasks.filter(t => t.status === 'done').length;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sprint-tab' + (sp.id === state.activeSprintId ? ' active' : '');
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', sp.id === state.activeSprintId ? 'true' : 'false');
+      btn.title = `${TYPE_META[sp.type].label} · ${sp.repeat === 'daily' ? 'repeats daily' : 'one-off'}`;
+      const label = document.createElement('span');
+      label.className = 'sprint-tab-name';
+      label.textContent = `${TYPE_META[sp.type].icon}${sp.repeat === 'daily' ? '🔁' : ''} ${sp.name}`;
+      const count = document.createElement('span');
+      count.className = 'sprint-tab-count';
+      count.textContent = `${done}/${sp.tasks.length}`;
+      btn.appendChild(label);
+      btn.appendChild(count);
+      btn.addEventListener('click', () => {
+        if (state.activeSprintId === sp.id) return;
+        state.activeSprintId = sp.id;
+        stopRename();
+        deleteArmed = false;
+        renderSprint();
+        commitSprints();
+      });
+      sprintTabs.appendChild(btn);
+    });
+  }
+
   function renderSprint() {
-    const sp = state.sprint;
-    if (sprintTitle) sprintTitle.textContent = sp.name;
-    if (sprintDates) sprintDates.textContent = `${sp.startDate} ~ ${sp.endDate}`;
+    renderSprintTabs();
+    const sp = activeSprint();
+    if (!sp) return;
+    if (!renaming && sprintTitle) sprintTitle.textContent = sp.name;
+    if (sprintBadge) {
+      sprintBadge.textContent = `${TYPE_META[sp.type].icon} ${TYPE_META[sp.type].label}`;
+      sprintBadge.className = `badge badge-${sp.type}`;
+    }
+    if (sprintDates) sprintDates.textContent = formatSprintDates(sp);
+    if (sprintRepeatBtn) {
+      sprintRepeatBtn.textContent = sp.repeat === 'daily' ? '🔁 Daily: on' : '🔁 Daily: off';
+      sprintRepeatBtn.classList.toggle('active', sp.repeat === 'daily');
+    }
+    if (sprintDeleteBtn) {
+      sprintDeleteBtn.textContent = deleteArmed ? '⚠ Click again to delete' : '🗑 Delete';
+      sprintDeleteBtn.disabled = state.sprints.length <= 1;
+    }
 
     const total = sp.tasks.length;
     const done = sp.tasks.filter(t => t.status === 'done').length;
@@ -142,12 +231,12 @@
     if (filterPendingCount) filterPendingCount.textContent = pending;
     if (filterDoneCount) filterDoneCount.textContent = done;
 
-    // High-priority task reminder banner
-    const highPending = sp.tasks.filter(t => t.priority === 'high' && t.status !== 'done');
+    // High-priority task reminder banner (across every sprint)
+    const highPending = state.sprints.flatMap(s => s.tasks).filter(t => t.priority === 'high' && t.status !== 'done');
     if (reminderBanner && reminderText) {
       if (highPending.length > 0) {
         reminderBanner.classList.remove('hidden');
-        reminderText.textContent = `⚠️ Reminder: ${highPending.length} high-priority task${highPending.length > 1 ? 's' : ''} pending in this sprint!`;
+        reminderText.textContent = `⚠️ Reminder: ${highPending.length} high-priority task${highPending.length > 1 ? 's' : ''} pending!`;
       } else {
         reminderBanner.classList.add('hidden');
       }
@@ -199,9 +288,9 @@
         delBtn.title = 'Delete Task';
         delBtn.addEventListener('click', e => {
           e.stopPropagation();
-          state.sprint.tasks = state.sprint.tasks.filter(t => t.id !== task.id);
+          sp.tasks = sp.tasks.filter(t => t.id !== task.id);
           renderSprint();
-          vscode.postMessage({ command: 'updateSprint', sprint: state.sprint });
+          commitSprints();
         });
 
         li.appendChild(dot);
@@ -211,13 +300,9 @@
 
         // Click task row to toggle status
         li.addEventListener('click', () => {
-          if (task.status === 'done') {
-            task.status = 'todo';
-          } else {
-            task.status = 'done';
-          }
+          task.status = task.status === 'done' ? 'todo' : 'done';
           renderSprint();
-          vscode.postMessage({ command: 'updateSprint', sprint: state.sprint });
+          commitSprints();
         });
 
         tasksList.appendChild(li);
@@ -240,10 +325,12 @@
     if (!taskInput) return;
     const text = taskInput.value.trim();
     if (!text) return;
+    const sp = activeSprint();
+    if (!sp) return;
 
     const priority = taskPrioritySelect ? taskPrioritySelect.value : 'medium';
 
-    state.sprint.tasks.unshift({
+    sp.tasks.unshift({
       id: String(Date.now()),
       text,
       priority,
@@ -253,7 +340,7 @@
 
     taskInput.value = '';
     renderSprint();
-    vscode.postMessage({ command: 'updateSprint', sprint: state.sprint });
+    commitSprints();
   }
 
   if (addTaskBtn) {
@@ -265,6 +352,120 @@
       if (e.key === 'Enter') {
         handleAddTask();
       }
+    });
+  }
+
+  // ----- Sprint management: create, rename, repeat daily, delete -----
+  let renaming = false;
+  let deleteArmed = false;
+  let deleteTimer = null;
+  const localDay = (offset) => {
+    const d = new Date(Date.now() + (offset || 0) * 86400000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  function showNewSprintForm(show) {
+    if (!newSprintForm) return;
+    newSprintForm.classList.toggle('hidden', !show);
+    if (show && newSprintName) { newSprintName.value = ''; newSprintName.focus(); }
+  }
+
+  function createSprint() {
+    const type = newSprintType ? newSprintType.value : 'personal';
+    const repeat = newSprintRepeat ? newSprintRepeat.value : 'daily';
+    const name = (newSprintName && newSprintName.value.trim()) ||
+      (type === 'work' ? 'Work tasks' : 'Personal tasks');
+    const today = localDay(0);
+    const sp = {
+      id: 'sp' + Date.now(),
+      name,
+      type,
+      repeat,
+      startDate: today,
+      endDate: repeat === 'daily' ? today : localDay(7),
+      tasks: []
+    };
+    if (repeat === 'daily') { sp.lastReset = today; sp.streak = 0; }
+    state.sprints.push(sp);
+    state.activeSprintId = sp.id;
+    showNewSprintForm(false);
+    renderSprint();
+    commitSprints();
+  }
+
+  function stopRename(commit) {
+    if (!renaming) return;
+    renaming = false;
+    const input = sprintTitle.querySelector('input');
+    const sp = activeSprint();
+    if (commit && input && input.value.trim() && sp) {
+      sp.name = input.value.trim().slice(0, 60);
+      commitSprints();
+    }
+    renderSprint();
+  }
+
+  function startRename() {
+    const sp = activeSprint();
+    if (!sp || renaming) return;
+    renaming = true;
+    sprintTitle.textContent = '';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'sprint-title-input';
+    input.maxLength = 60;
+    input.value = sp.name;
+    input.setAttribute('aria-label', 'Sprint name');
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') stopRename(true);
+      else if (e.key === 'Escape') stopRename(false);
+    });
+    input.addEventListener('blur', () => stopRename(true));
+    sprintTitle.appendChild(input);
+    input.focus();
+    input.select();
+  }
+
+  if (newSprintBtn) newSprintBtn.addEventListener('click', () => showNewSprintForm(newSprintForm.classList.contains('hidden')));
+  if (createSprintBtn) createSprintBtn.addEventListener('click', createSprint);
+  if (cancelSprintBtn) cancelSprintBtn.addEventListener('click', () => showNewSprintForm(false));
+  if (newSprintName) newSprintName.addEventListener('keydown', e => { if (e.key === 'Enter') createSprint(); else if (e.key === 'Escape') showNewSprintForm(false); });
+  if (sprintRenameBtn) sprintRenameBtn.addEventListener('click', startRename);
+
+  if (sprintRepeatBtn) {
+    sprintRepeatBtn.addEventListener('click', () => {
+      const sp = activeSprint();
+      if (!sp) return;
+      sp.repeat = sp.repeat === 'daily' ? 'none' : 'daily';
+      if (sp.repeat === 'daily') {
+        sp.startDate = sp.endDate = localDay(0);
+      } else {
+        sp.startDate = localDay(0);
+        sp.endDate = localDay(7);
+      }
+      renderSprint();
+      commitSprints();
+    });
+  }
+
+  // Deleting asks twice (a second click within 3 seconds) instead of a pop-up, which webviews don't allow.
+  if (sprintDeleteBtn) {
+    sprintDeleteBtn.addEventListener('click', () => {
+      if (state.sprints.length <= 1) return;
+      if (!deleteArmed) {
+        deleteArmed = true;
+        clearTimeout(deleteTimer);
+        deleteTimer = setTimeout(() => { deleteArmed = false; renderSprint(); }, 3000);
+        renderSprint();
+        return;
+      }
+      clearTimeout(deleteTimer);
+      deleteArmed = false;
+      const id = state.activeSprintId;
+      state.sprints = state.sprints.filter(sp => sp.id !== id);
+      state.activeSprintId = state.sprints[0].id;
+      renderSprint();
+      commitSprints();
     });
   }
 
@@ -408,6 +609,39 @@
   });
 
   // =============================================================
+  // 5b. WATER REMINDER
+  // =============================================================
+  function renderWater(w) {
+    if (!w) return;
+    if (waterEnabled) waterEnabled.checked = !!w.enabled;
+    // Don't overwrite the number while the user is typing in it.
+    if (waterInterval && document.activeElement !== waterInterval) waterInterval.value = w.intervalMinutes;
+    waterChips.forEach(c => c.classList.toggle('active', Number(c.dataset.water) === w.intervalMinutes));
+    const card = document.getElementById('waterCard');
+    if (card) card.classList.toggle('off', !w.enabled);
+    if (waterHint) {
+      const m = w.intervalMinutes;
+      const every = m % 60 === 0 ? (m === 60 ? 'hour' : `${m / 60} hours`) : `${m} minute${m === 1 ? '' : 's'}`;
+      waterHint.textContent = w.enabled
+        ? `Your companion will nudge you to drink water every ${every}.`
+        : 'Water reminders are off.';
+    }
+  }
+
+  function setWaterInterval(mins) {
+    const n = Math.round(Number(mins));
+    if (!isFinite(n)) return;
+    vscode.postMessage({ command: 'setWater', intervalMinutes: Math.max(1, Math.min(480, n)) });
+  }
+
+  if (waterEnabled) waterEnabled.addEventListener('change', () => vscode.postMessage({ command: 'setWater', enabled: waterEnabled.checked }));
+  if (waterInterval) {
+    waterInterval.addEventListener('change', () => setWaterInterval(waterInterval.value));
+    waterInterval.addEventListener('keydown', e => { if (e.key === 'Enter') { setWaterInterval(waterInterval.value); waterInterval.blur(); } });
+  }
+  waterChips.forEach(c => c.addEventListener('click', () => setWaterInterval(c.dataset.water)));
+
+  // =============================================================
   // 6. VS CODE MESSAGE LISTENER
   // =============================================================
   window.addEventListener('message', event => {
@@ -430,7 +664,16 @@
 
       case 'timerAlert':
         renderTimer();
-        if (window.UnagiPet) window.UnagiPet.onTimerAlert(msg.message);
+        break;
+
+      case 'say':
+        if (window.UnagiPet) {
+          window.UnagiPet.onSay({ text: msg.text, mood: msg.mood, sticky: msg.sticky, goto: msg.goto, tab: msg.tab });
+        }
+        break;
+
+      case 'water':
+        renderWater(msg);
         break;
 
       case 'config':
@@ -446,7 +689,6 @@
           reminderBanner.classList.remove('hidden');
           reminderText.textContent = `⚠️ Reminder: ${msg.pendingCount} high-priority task${msg.pendingCount > 1 ? 's' : ''} pending!`;
         }
-        if (window.UnagiPet) window.UnagiPet.onReminder(msg.pendingCount);
         break;
     }
   });

@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import type { CompanionAlert } from './DesktopCompanion';
-import { CharacterDef, DEFAULT_CHARACTER, fillLine, getCharacter, loadCharacters, pickLine } from './characters';
+import { CharacterDef, DEFAULT_CHARACTER, LineKey, SCENARIOS, fillLine, getCharacter, loadCharacters, mergeLines, pickLine } from './characters';
 import { deleteCustomCharacter } from './CharacterStudio';
+import { QuoteService, formatQuote } from './Quotes';
 
 /** A character as the webview needs it: asset paths already turned into webview URIs. */
 export interface WebviewCharacter {
@@ -24,10 +25,22 @@ export interface SprintTask {
   createdAt: number;
 }
 
+export type SprintType = 'personal' | 'work';
+export type SprintRepeat = 'none' | 'daily';
+
 export interface SprintData {
+  id: string;
   name: string;
+  /** Personal tasks or work tasks. */
+  type: SprintType;
+  /** 'daily' sprints start over (all tasks back to "to do") every new day. */
+  repeat: SprintRepeat;
   startDate: string;
   endDate: string;
+  /** Local date (YYYY-MM-DD) a daily sprint last started over. */
+  lastReset?: string;
+  /** Consecutive days a daily sprint was fully completed. */
+  streak?: number;
   tasks: SprintTask[];
 }
 
@@ -40,7 +53,8 @@ export interface TimerState {
 }
 
 export interface DeskState {
-  sprint: SprintData;
+  sprints: SprintData[];
+  activeSprintId: string;
   notes: string;
   timer: TimerState;
 }
@@ -49,6 +63,8 @@ export type DeskMessageType =
   | { type: 'sync'; state: DeskState }
   | { type: 'timerAlert'; message: string }
   | { type: 'taskReminder'; pendingCount: number }
+  | { type: 'say'; text: string; mood?: 'alert' | 'angry' | 'happy'; sticky?: boolean; goto?: string; tab?: string }
+  | { type: 'water'; enabled: boolean; intervalMinutes: number }
   | { type: 'config'; config: { enabled: boolean; movement: 'free' | 'floor'; character: WebviewCharacter } }
   | { type: 'companionPanel'; data: CompanionPanelData };
 
@@ -69,7 +85,20 @@ export interface CompanionPanelData {
     desktop: boolean;
     desktopSupported: boolean;
   };
+  /** Editable dialogue of the current character, one entry per scenario. */
+  dialogue: {
+    character: string;
+    scenarios: Array<{ key: string; label: string; hint: string; vars: string[]; lines: string[]; custom: boolean }>;
+  };
 }
+
+/** Per-character dialogue the user has rewritten: { characterId: { scenarioKey: [lines] } }. */
+type DialogueOverrides = Record<string, Partial<Record<LineKey, string[]>>>;
+
+const localDate = (d: Date = new Date()): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const isoDay = (offsetDays = 0): string => localDate(new Date(Date.now() + offsetDays * 86400000));
 
 /** Anything that owns a webview and can be disposed: a sidebar view or an editor panel. */
 interface WebviewHost {
@@ -86,37 +115,26 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
   private readonly _alertEmitter = new vscode.EventEmitter<CompanionAlert>();
   /** Fires for every alert / task notification the companion should announce. */
   public readonly onDidAlert = this._alertEmitter.event;
+  private readonly _dialogueEmitter = new vscode.EventEmitter<void>();
+  /** Fires when the user edits the companion's dialogue. */
+  public readonly onDidChangeDialogue = this._dialogueEmitter.event;
   private _statusBarItem?: vscode.StatusBarItem;
   private _tickerInterval?: NodeJS.Timeout;
   private _lastReminderCheck = Date.now();
+  private _lastWater = Date.now();
+  private _lastQuote = Date.now();
+  private readonly _quotes = new QuoteService();
+  private _today = localDate();
+  private _dialogue: DialogueOverrides = {};
 
-  private _state: DeskState = {
-    sprint: {
-      name: 'Sprint 14: Core Features',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-      tasks: [
-        { id: '1', text: 'Implement user authentication & session management', priority: 'high', status: 'done', createdAt: Date.now() - 3600000 },
-        { id: '2', text: 'Connect database migrations and schema indexes', priority: 'high', status: 'inprogress', createdAt: Date.now() - 2400000 },
-        { id: '3', text: 'Write end-to-end integration tests for API endpoints', priority: 'medium', status: 'todo', createdAt: Date.now() - 1200000 },
-        { id: '4', text: 'Review pull requests and update technical docs', priority: 'low', status: 'todo', createdAt: Date.now() }
-      ]
-    },
-    notes: `# UNAGI: Total Awareness ⚡🍣\n\n"Unagi is a state of total awareness. Only by achieving true Unagi can you be prepared for any danger that may befall you."\n\n## Quick Sprint Notes:\n- [ ] Check API rate limits before deploy\n- [ ] Verify database connection pool sizing\n\n\`\`\`ts\n// Unagi flow\nconst state = "Total Awareness";\n\`\`\`\n`,
-    timer: {
-      isRunning: false,
-      timeLeft: 25 * 60,
-      totalTime: 25 * 60,
-      mode: 'idle',
-      round: 1
-    }
-  };
+  private _state: DeskState = this._defaultState();
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _globalState: vscode.Memento
   ) {
     this._loadPersistedData();
+    this._rolloverDaily(false);
     this._startBackgroundTicker();
   }
 
@@ -125,21 +143,151 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
     this._updateStatusBar();
   }
 
+  private _defaultState(): DeskState {
+    const today = isoDay();
+    return {
+      sprints: [
+        {
+          id: 'work-1',
+          name: 'Sprint 14: Core Features',
+          type: 'work',
+          repeat: 'none',
+          startDate: today,
+          endDate: isoDay(7),
+          tasks: [
+            { id: '1', text: 'Implement user authentication & session management', priority: 'high', status: 'done', createdAt: Date.now() - 3600000 },
+            { id: '2', text: 'Connect database migrations and schema indexes', priority: 'high', status: 'inprogress', createdAt: Date.now() - 2400000 },
+            { id: '3', text: 'Write end-to-end integration tests for API endpoints', priority: 'medium', status: 'todo', createdAt: Date.now() - 1200000 },
+            { id: '4', text: 'Review pull requests and update technical docs', priority: 'low', status: 'todo', createdAt: Date.now() }
+          ]
+        },
+        {
+          id: 'personal-1',
+          name: 'Daily Routine',
+          type: 'personal',
+          repeat: 'daily',
+          startDate: today,
+          endDate: today,
+          lastReset: today,
+          streak: 0,
+          tasks: [
+            { id: 'p1', text: 'Stretch and take a short walk', priority: 'medium', status: 'todo', createdAt: Date.now() - 2000 },
+            { id: 'p2', text: 'Plan tomorrow before logging off', priority: 'low', status: 'todo', createdAt: Date.now() - 1000 }
+          ]
+        }
+      ],
+      activeSprintId: 'work-1',
+      notes: `# UNAGI: Total Awareness ⚡🍣\n\n"Unagi is a state of total awareness. Only by achieving true Unagi can you be prepared for any danger that may befall you."\n\n## Quick Sprint Notes:\n- [ ] Check API rate limits before deploy\n- [ ] Verify database connection pool sizing\n\n\`\`\`ts\n// Unagi flow\nconst state = "Total Awareness";\n\`\`\`\n`,
+      timer: {
+        isRunning: false,
+        timeLeft: 25 * 60,
+        totalTime: 25 * 60,
+        mode: 'idle',
+        round: 1
+      }
+    };
+  }
+
   private _loadPersistedData(): void {
-    const sSprint = this._globalState.get<SprintData>('unagi.sprint') || this._globalState.get<SprintData>('sprintdesk.sprint');
-    if (sSprint) this._state.sprint = sSprint;
+    const sprints = this._globalState.get<SprintData[]>('unagi.sprints');
+    if (Array.isArray(sprints) && sprints.length) {
+      this._state.sprints = this._sanitizeSprints(sprints, sprints);
+      const active = this._globalState.get<string>('unagi.activeSprint');
+      this._state.activeSprintId = active && this._state.sprints.some(sp => sp.id === active) ? active : this._state.sprints[0].id;
+    } else {
+      // Older versions kept a single sprint; it becomes a one-off work sprint.
+      const legacy = this._globalState.get<any>('unagi.sprint') || this._globalState.get<any>('sprintdesk.sprint');
+      if (legacy && Array.isArray(legacy.tasks)) {
+        this._state.sprints = this._sanitizeSprints([{ ...legacy, id: 'work-1', type: 'work', repeat: 'none' }], []);
+        this._state.activeSprintId = this._state.sprints[0].id;
+      }
+    }
 
     const sNotes = this._globalState.get<string>('unagi.notes') || this._globalState.get<string>('sprintdesk.notes');
     if (typeof sNotes === 'string') this._state.notes = sNotes;
 
     const sTimer = this._globalState.get<TimerState>('unagi.timer') || this._globalState.get<TimerState>('sprintdesk.timer');
     if (sTimer) this._state.timer = sTimer;
+
+    const dlg = this._globalState.get<DialogueOverrides>('unagi.dialogue');
+    if (dlg && typeof dlg === 'object') this._dialogue = dlg;
   }
 
   private async _persistData(): Promise<void> {
-    await this._globalState.update('unagi.sprint', this._state.sprint);
+    await this._globalState.update('unagi.sprints', this._state.sprints);
+    await this._globalState.update('unagi.activeSprint', this._state.activeSprintId);
     await this._globalState.update('unagi.notes', this._state.notes);
     await this._globalState.update('unagi.timer', this._state.timer);
+  }
+
+  /**
+   * Validate sprints coming from a webview (or storage). The daily-reset bookkeeping
+   * (lastReset, streak) is host-owned: it is taken from `existing`, never from the webview.
+   */
+  private _sanitizeSprints(raw: unknown, existing: SprintData[]): SprintData[] {
+    if (!Array.isArray(raw)) return existing;
+    const str = (v: unknown, max: number, fallback: string) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : fallback);
+    const today = isoDay();
+    const out: SprintData[] = [];
+    for (const r of raw.slice(0, 30)) {
+      if (!r || typeof r !== 'object') continue;
+      const id = str(r.id, 40, '') || `s${Date.now()}${out.length}`;
+      if (out.some(sp => sp.id === id)) continue;
+      const old = existing.find(sp => sp.id === id);
+      const repeat: SprintRepeat = r.repeat === 'daily' ? 'daily' : 'none';
+      const tasks: SprintTask[] = (Array.isArray(r.tasks) ? r.tasks : []).slice(0, 500)
+        .filter((t: any) => t && typeof t === 'object')
+        .map((t: any, i: number): SprintTask => ({
+          id: str(t.id, 40, `t${Date.now()}${i}`),
+          text: str(t.text, 300, '(untitled)'),
+          priority: (['high', 'medium', 'low'].includes(t.priority) ? t.priority : 'medium') as SprintTask['priority'],
+          status: (['todo', 'inprogress', 'done'].includes(t.status) ? t.status : 'todo') as SprintTask['status'],
+          createdAt: Number(t.createdAt) || Date.now()
+        }));
+      const lastReset = repeat === 'daily' ? (old?.lastReset ?? today) : undefined;
+      out.push({
+        id,
+        name: str(r.name, 60, 'Sprint'),
+        type: r.type === 'personal' ? 'personal' : 'work',
+        repeat,
+        startDate: repeat === 'daily' ? (lastReset as string) : str(r.startDate, 10, today),
+        endDate: repeat === 'daily' ? (lastReset as string) : str(r.endDate, 10, isoDay(7)),
+        lastReset,
+        streak: repeat === 'daily' ? (old?.streak ?? 0) : undefined,
+        tasks
+      });
+    }
+    return out.length ? out : existing;
+  }
+
+  private get _activeSprint(): SprintData {
+    return this._state.sprints.find(sp => sp.id === this._state.activeSprintId) ?? this._state.sprints[0];
+  }
+
+  /** Daily sprints start over on a new day: every task goes back to "to do" and the streak is updated. */
+  private _rolloverDaily(announce: boolean): void {
+    const today = isoDay();
+    this._today = today;
+    let changed = false;
+    for (const sp of this._state.sprints) {
+      if (sp.repeat !== 'daily' || sp.lastReset === today) continue;
+      if (sp.lastReset) {
+        const wasComplete = sp.tasks.length > 0 && sp.tasks.every(t => t.status === 'done');
+        sp.streak = wasComplete ? (sp.streak ?? 0) + 1 : 0;
+        sp.tasks.forEach(t => { t.status = 'todo'; });
+      }
+      sp.lastReset = today;
+      sp.startDate = today;
+      sp.endDate = today;
+      changed = true;
+      if (announce && sp.tasks.length) {
+        this._say(this._line('newDay', { sprint: sp.name, p: sp.tasks.length }), { mood: 'happy', tab: 'sprint' });
+      }
+    }
+    if (changed) {
+      void this._persistData();
+      this._broadcastSync();
+    }
   }
 
   private _startBackgroundTicker(): void {
@@ -158,7 +306,10 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
         }
       }
 
-      // 2. Periodic task reminder check (every configured interval)
+      // 2. Daily sprints start over when the date changes
+      if (isoDay() !== this._today) this._rolloverDaily(true);
+
+      // 3. Periodic task reminder check (every configured interval)
       const config = vscode.workspace.getConfiguration('unagi');
       const reminderMins = config.get<number>('reminderIntervalMinutes', 30);
       const enableReminders = config.get<boolean>('enableTaskReminders', true);
@@ -166,6 +317,19 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
       if (enableReminders && (Date.now() - this._lastReminderCheck) >= reminderMins * 60000) {
         this._lastReminderCheck = Date.now();
         this._checkTaskReminders();
+      }
+
+      // 4. Water reminder
+      const water = this._waterConfig();
+      if (water.enabled && (Date.now() - this._lastWater) >= water.intervalMinutes * 60000) {
+        this._lastWater = Date.now();
+        this._remindWater();
+      }
+
+      // 5. A random quote now and then
+      const quotes = this._quoteConfig();
+      if (quotes.enabled && (Date.now() - this._lastQuote) >= quotes.intervalMinutes * 60000) {
+        this.sayQuote();
       }
 
       this._updateStatusBar();
@@ -176,82 +340,150 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
     }, 1000);
   }
 
+  // ---------------------------------------------------------------
+  // Dialogue
+  // ---------------------------------------------------------------
+
+  /** A random line of the current character for a scenario, with placeholders filled in. */
+  private _line(key: LineKey, vars: Parameters<typeof fillLine>[1] = {}): string {
+    return fillLine(pickLine(this.currentCharacter().lines[key]), vars);
+  }
+
+  /** Make the companion say something: in every open view and on the desktop. */
+  private _say(
+    text: string,
+    opts: { mood?: 'alert' | 'angry' | 'happy'; sticky?: boolean; goto?: string; tab?: string } = {}
+  ): void {
+    if (!text) return;
+    this.postMessage({ type: 'say', text, ...opts });
+    this._alertEmitter.fire({ text, sticky: opts.sticky, mood: opts.mood });
+  }
+
+  // ---------------------------------------------------------------
+  // Water reminder
+  // ---------------------------------------------------------------
+  private _waterConfig(): { enabled: boolean; intervalMinutes: number } {
+    const c = vscode.workspace.getConfiguration('unagi.water');
+    const raw = Number(c.get<number>('intervalMinutes', 60));
+    return {
+      enabled: c.get<boolean>('enabled', true),
+      intervalMinutes: Math.max(1, Math.min(480, Math.round(isNaN(raw) ? 60 : raw)))
+    };
+  }
+
+  private _quoteConfig(): { enabled: boolean; online: boolean; intervalMinutes: number } {
+    const c = vscode.workspace.getConfiguration('unagi.quotes');
+    const raw = Number(c.get<number>('intervalMinutes', 45));
+    return {
+      enabled: c.get<boolean>('enabled', true),
+      online: c.get<boolean>('online', true),
+      intervalMinutes: Math.max(1, Math.min(480, Math.round(isNaN(raw) ? 45 : raw)))
+    };
+  }
+
+  /** The companion speaks a random quote (from the web when allowed, else from a built-in list). */
+  public sayQuote(): void {
+    this._lastQuote = Date.now();
+    this._say(formatQuote(this._quotes.next(this._quoteConfig().online)), { mood: 'happy' });
+  }
+
+  public resetQuoteTimer(): void {
+    this._lastQuote = Date.now();
+  }
+
+  /** Restart the countdown (called when the water settings change). */
+  public resetWaterTimer(): void {
+    this._lastWater = Date.now();
+  }
+
+  private _remindWater(): void {
+    const text = this._line('water');
+    void vscode.window.showInformationMessage(`💧 UNAGI: ${text}`);
+    this._say(text, { mood: 'alert', sticky: true, goto: 'water', tab: 'timer' });
+  }
+
   private _handleTimerComplete(): void {
     const wasFocus = this._state.timer.mode === 'focus' || this._state.timer.mode === 'idle';
+    let text: string;
     if (wasFocus) {
       this._state.timer.mode = 'break';
       this._state.timer.timeLeft = 5 * 60;
       this._state.timer.totalTime = 5 * 60;
       this._state.timer.isRunning = false;
       this._state.timer.round++;
-
-      const msg = '🍣 UNAGI: Focus session complete! Take a refreshing 5-minute break.';
-      vscode.window.showInformationMessage(msg);
-      this.postMessage({ type: 'timerAlert', message: msg });
-      this._alertEmitter.fire({ text: msg, sticky: true, mood: 'alert' });
+      text = this._line('focusDone');
+      vscode.window.showInformationMessage(`🍣 UNAGI: ${text}`);
     } else {
       this._state.timer.mode = 'idle';
       this._state.timer.timeLeft = 25 * 60;
       this._state.timer.totalTime = 25 * 60;
       this._state.timer.isRunning = false;
-
-      const msg = '⚡ UNAGI: Break finished! Ready to enter total awareness again?';
-      vscode.window.showInformationMessage(msg);
-      this.postMessage({ type: 'timerAlert', message: msg });
-      this._alertEmitter.fire({ text: msg, sticky: true, mood: 'alert' });
+      text = this._line('breakDone');
+      vscode.window.showInformationMessage(`⚡ UNAGI: ${text}`);
     }
+    this.postMessage({ type: 'timerAlert', message: text });
+    this._say(text, { mood: 'alert', sticky: true, goto: 'timer', tab: 'timer' });
     this._persistData();
   }
 
   private _checkTaskReminders(): void {
-    const pendingHighTasks = this._state.sprint.tasks.filter(
+    const pendingHighTasks = this._state.sprints.flatMap(sp => sp.tasks).filter(
       t => t.priority === 'high' && t.status !== 'done'
     );
     if (pendingHighTasks.length > 0) {
-      const msg = `⚡ UNAGI Reminder: You have ${pendingHighTasks.length} high-priority task${pendingHighTasks.length > 1 ? 's' : ''} pending!`;
+      const n = pendingHighTasks.length;
+      const msg = `⚡ UNAGI Reminder: You have ${n} high-priority task${n > 1 ? 's' : ''} pending!`;
       vscode.window.showInformationMessage(msg, 'Open UNAGI').then(selection => {
         if (selection === 'Open UNAGI') {
           this.focus();
         }
       });
-      this.postMessage({ type: 'taskReminder', pendingCount: pendingHighTasks.length });
-      const lines = this.currentCharacter().lines;
-      this._alertEmitter.fire({
-        text: fillLine(lines.reminder, { n: pendingHighTasks.length }),
-        sticky: true,
-        mood: 'alert'
-      });
+      this.postMessage({ type: 'taskReminder', pendingCount: n });
+      this._say(this._line('reminder', { n }), { mood: 'alert', sticky: true, goto: 'reminder', tab: 'sprint' });
+    }
 
-      // Sprint about to end with work left: the companion gets properly cross.
-      const pending = this._state.sprint.tasks.filter(t => t.status !== 'done').length;
-      const end = Date.parse(this._state.sprint.endDate);
+    // A one-off sprint about to end with work left: the companion gets properly cross.
+    for (const sp of this._state.sprints) {
+      if (sp.repeat === 'daily') continue;
+      const pending = sp.tasks.filter(t => t.status !== 'done').length;
+      const end = Date.parse(sp.endDate);
       const days = isNaN(end) ? null : Math.ceil((end - Date.now()) / 86400000);
       if (days !== null && days <= 1 && pending > 0) {
-        this._alertEmitter.fire({
-          text: fillLine(lines.ending, { when: days <= 0 ? 'today' : 'tomorrow', p: pending }),
-          sticky: true,
-          mood: 'angry'
-        });
+        this._say(this._line('ending', { when: days <= 0 ? 'today' : 'tomorrow', p: pending, sprint: sp.name }), { mood: 'angry', sticky: true, goto: 'sprint', tab: 'sprint' });
+        break;
       }
     }
   }
 
-  /** Announce what changed between two versions of the task list. */
-  private _announceTaskChanges(prev: SprintTask[], next: SprintTask[]): void {
-    const before = new Map(prev.map(t => [t.id, t.status]));
-    const newlyDone = next.filter(t => t.status === 'done' && before.has(t.id) && before.get(t.id) !== 'done');
-    const added = next.filter(t => !before.has(t.id));
+  /** Announce what changed between two versions of the sprints. */
+  private _announceTaskChanges(prev: SprintData[], next: SprintData[]): void {
+    let completed: SprintData | undefined;
+    let doneTask: SprintTask | undefined;
+    let doneSprint: SprintData | undefined;
+    let added: SprintTask | undefined;
+    let addedSprint: SprintData | undefined;
 
-    const lines = this.currentCharacter().lines;
-    if (newlyDone.length) {
-      const allDone = next.length > 0 && next.every(t => t.status === 'done');
-      this._alertEmitter.fire({
-        text: pickLine(allDone ? lines.allDone : lines.taskDone),
-        mood: 'happy'
-      });
-    } else if (added.length) {
-      const text = added[added.length - 1].text;
-      this._alertEmitter.fire({ text: fillLine(lines.taskAdded, { t: text.length > 40 ? text.slice(0, 37) + '…' : text }) });
+    for (const sp of next) {
+      const old = prev.find(o => o.id === sp.id);
+      if (!old) continue;
+      const before = new Map(old.tasks.map(t => [t.id, t.status]));
+      const newlyDone = sp.tasks.filter(t => t.status === 'done' && before.has(t.id) && before.get(t.id) !== 'done');
+      if (newlyDone.length) {
+        doneTask = newlyDone[newlyDone.length - 1];
+        doneSprint = sp;
+        if (sp.tasks.every(t => t.status === 'done')) completed = sp;
+      }
+      const fresh = sp.tasks.filter(t => !before.has(t.id));
+      if (fresh.length) { added = fresh[fresh.length - 1]; addedSprint = sp; }
+    }
+
+    const short = (t: string) => (t.length > 40 ? t.slice(0, 37) + '…' : t);
+    if (completed) {
+      this._say(this._line('sprintComplete', { sprint: completed.name }), { mood: 'happy' });
+    } else if (doneTask && doneSprint) {
+      this._say(this._line('taskDone', { t: short(doneTask.text), sprint: doneSprint.name }), { mood: 'happy' });
+    } else if (added && addedSprint) {
+      this._say(this._line('taskAdded', { t: short(added.text), sprint: addedSprint.name }));
     }
   }
 
@@ -284,17 +516,10 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
   }
 
   public addQuickTask(text: string, priority: 'high' | 'medium' | 'low' = 'medium'): void {
-    this._announceTaskChanges(this._state.sprint.tasks, [
-      ...this._state.sprint.tasks,
-      { id: '', text, priority, status: 'todo', createdAt: Date.now() }
-    ]);
-    this._state.sprint.tasks.push({
-      id: String(Date.now()),
-      text,
-      priority,
-      status: 'todo',
-      createdAt: Date.now()
-    });
+    const prev = JSON.parse(JSON.stringify(this._state.sprints)) as SprintData[];
+    const target = this._activeSprint;
+    target.tasks.push({ id: String(Date.now()), text, priority, status: 'todo', createdAt: Date.now() });
+    this._announceTaskChanges(prev, this._state.sprints);
     this._persistData();
     this._broadcastSync();
     this._updateStatusBar();
@@ -308,11 +533,12 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
     const timeStr = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     const timerIcon = this._state.timer.isRunning ? '$(clock)' : '$(play)';
 
-    const total = this._state.sprint.tasks.length;
-    const done = this._state.sprint.tasks.filter(t => t.status === 'done').length;
+    const active = this._activeSprint;
+    const total = active.tasks.length;
+    const done = active.tasks.filter(t => t.status === 'done').length;
 
     this._statusBarItem.text = `⚡ UNAGI: ${timerIcon} ${timeStr} | $(checklist) ${done}/${total}`;
-    this._statusBarItem.tooltip = `UNAGI: Total Awareness | ${done}/${total} sprint tasks done. Click to open.`;
+    this._statusBarItem.tooltip = `UNAGI: Total Awareness | ${done}/${total} tasks done in ${active.name}. Click to open.`;
     this._statusBarItem.show();
   }
 
@@ -338,8 +564,53 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
 
   /** The character picked in settings (falls back to Croagunk if it no longer exists). */
   public currentCharacter(): CharacterDef {
+    const c = this._baseCharacter();
+    return { ...c, lines: mergeLines(c.lines, this._dialogue[c.id]) };
+  }
+
+  /** The character as shipped, before the user's own dialogue is applied. */
+  private _baseCharacter(): CharacterDef {
     const id = vscode.workspace.getConfiguration('unagi.companion').get<string>('character', DEFAULT_CHARACTER);
     return getCharacter(this._extensionUri.fsPath, id, this._userDir);
+  }
+
+  private _dialogueData(): CompanionPanelData['dialogue'] {
+    const base = this._baseCharacter();
+    const custom = this._dialogue[base.id] ?? {};
+    const lines = mergeLines(base.lines, custom);
+    return {
+      character: base.name,
+      scenarios: SCENARIOS.map(sc => ({
+        key: sc.key, label: sc.label, hint: sc.hint, vars: sc.vars,
+        lines: lines[sc.key], custom: !!(custom[sc.key] && custom[sc.key]!.length)
+      }))
+    };
+  }
+
+  /** Save (or, with no lines, clear) the user's own dialogue for one scenario of the current character. */
+  private async _setDialogue(key: unknown, lines: unknown): Promise<void> {
+    if (typeof key !== 'string' || !SCENARIOS.some(sc => sc.key === key)) return;
+    const id = this._baseCharacter().id;
+    const clean = (Array.isArray(lines) ? lines : [])
+      .map(l => String(l).replace(/\s+/g, ' ').trim().slice(0, 200)).filter(Boolean).slice(0, 30);
+    const mine = { ...(this._dialogue[id] ?? {}) };
+    if (clean.length) mine[key as LineKey] = clean;
+    else delete mine[key as LineKey];
+    const next = { ...this._dialogue };
+    if (Object.keys(mine).length) next[id] = mine; else delete next[id];
+    this._dialogue = next;
+    await this._globalState.update('unagi.dialogue', this._dialogue);
+    this._dialogueEmitter.fire();
+    this.broadcastCompanionConfig();
+  }
+
+  /** Have the companion say a scenario line now (sample values fill the placeholders). */
+  private _previewDialogue(key: unknown, lines: unknown): void {
+    if (typeof key !== 'string' || !SCENARIOS.some(sc => sc.key === key)) return;
+    const list = (Array.isArray(lines) ? lines : []).map(l => String(l).trim()).filter(Boolean);
+    const pool = list.length ? list : this.currentCharacter().lines[key as LineKey];
+    const sample = { n: 2, t: 'Write the tests', when: 'tomorrow', p: 3, sprint: this._activeSprint.name };
+    this._say(fillLine(pickLine(pool), sample), { mood: key === 'ending' ? 'angry' : key === 'pet' ? 'happy' : 'alert' });
   }
 
   private _movement(): 'free' | 'floor' {
@@ -367,7 +638,8 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
         movement: this._movement(),
         desktop: desktopOn && process.platform === 'win32',
         desktopSupported: process.platform === 'win32'
-      }
+      },
+      dialogue: this._dialogueData()
     };
   }
 
@@ -412,6 +684,7 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
     for (const webview of this._webviews) {
       webview.postMessage({ type: 'config', config: this._companionConfig(webview) });
       webview.postMessage({ type: 'companionPanel', data: this._panelData(webview) });
+      webview.postMessage({ type: 'water', ...this._waterConfig() });
     }
   }
 
@@ -524,16 +797,41 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
           }
           break;
 
+        case 'saveDialogue':
+          await this._setDialogue(message.key, message.lines);
+          break;
+
+        case 'resetDialogue':
+          await this._setDialogue(message.key, []);
+          break;
+
+        case 'testDialogue':
+          this._previewDialogue(message.key, message.lines);
+          break;
+
+        case 'setWater': {
+          const water = vscode.workspace.getConfiguration('unagi.water');
+          if (typeof message.enabled === 'boolean') await water.update('enabled', message.enabled, vscode.ConfigurationTarget.Global);
+          if (typeof message.intervalMinutes === 'number' && isFinite(message.intervalMinutes)) {
+            await water.update('intervalMinutes', Math.max(1, Math.min(480, Math.round(message.intervalMinutes))), vscode.ConfigurationTarget.Global);
+          }
+          break;
+        }
+
         case 'ready':
           webview.postMessage({ type: 'config', config: this._companionConfig(webview) });
           webview.postMessage({ type: 'companionPanel', data: this._panelData(webview) });
+          webview.postMessage({ type: 'water', ...this._waterConfig() });
           webview.postMessage({ type: 'sync', state: this._state });
           break;
 
-        case 'updateSprint':
-          if (message.sprint) {
-            this._announceTaskChanges(this._state.sprint.tasks, message.sprint.tasks ?? []);
-            this._state.sprint = message.sprint;
+        case 'updateSprints':
+          if (Array.isArray(message.sprints)) {
+            const prev = this._state.sprints;
+            const next = this._sanitizeSprints(message.sprints, prev);
+            this._announceTaskChanges(prev, next);
+            this._state.sprints = next;
+            this._state.activeSprintId = next.some(sp => sp.id === message.activeSprintId) ? message.activeSprintId : next[0].id;
             await this._persistData();
             this._broadcastSync();
             this._updateStatusBar();
@@ -655,14 +953,43 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
     <main id="tabPanels">
       <!-- 1. SPRINTS & TASKS PANEL -->
       <section id="sprintPanel" class="tab-panel active">
+        <!-- Sprint switcher: one tab per sprint (personal / work, one-off / daily) -->
+        <div class="sprint-switcher">
+          <div id="sprintTabs" class="sprint-tabs" role="tablist" aria-label="Sprints"></div>
+          <button id="newSprintBtn" class="btn secondary small" title="Create a new sprint">＋ Sprint</button>
+        </div>
+
+        <div id="newSprintForm" class="card new-sprint hidden">
+          <input type="text" id="newSprintName" placeholder="Sprint name (e.g. Morning routine)" maxlength="60" />
+          <div class="input-row">
+            <select id="newSprintType" class="priority-select" title="Sprint type">
+              <option value="personal">🏡 Personal tasks</option>
+              <option value="work">💼 Work tasks</option>
+            </select>
+            <select id="newSprintRepeat" class="priority-select" title="Repeat">
+              <option value="daily">🔁 Repeats daily</option>
+              <option value="none">One-off (7 days)</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <button id="createSprintBtn" class="btn primary small">Create sprint</button>
+            <button id="cancelSprintBtn" class="btn secondary small">Cancel</button>
+          </div>
+        </div>
+
         <!-- Sprint Info Card -->
         <div class="card sprint-header-card">
           <div class="sprint-title-row">
-            <h3 id="sprintTitle" class="sprint-title">Sprint 14: Core Features</h3>
-            <span id="sprintBadge" class="badge">Active Sprint</span>
+            <h3 id="sprintTitle" class="sprint-title">Sprint</h3>
+            <span id="sprintBadge" class="badge">Work</span>
           </div>
           <div class="sprint-dates" id="sprintDates">Active Sprint Duration</div>
-          
+          <div class="sprint-tools">
+            <button id="sprintRepeatBtn" class="chip" title="Daily sprints start over every day">🔁 Daily</button>
+            <button id="sprintRenameBtn" class="chip" title="Rename this sprint">✎ Rename</button>
+            <button id="sprintDeleteBtn" class="chip danger" title="Delete this sprint">🗑 Delete</button>
+          </div>
+
           <div class="progress-container">
             <div class="progress-bar">
               <div id="sprintProgressFill" class="progress-fill" style="width: 0%;"></div>
@@ -753,6 +1080,31 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
             </div>
           </div>
         </div>
+
+        <!-- Water reminder: the companion nudges you to drink on a schedule you choose -->
+        <div class="card water-card" id="waterCard">
+          <div class="comp-head">
+            <h3 class="comp-title">💧 Drink water reminder</h3>
+            <label class="switch" title="Turn the water reminder on or off">
+              <input type="checkbox" id="waterEnabled" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="switch-label">On</span>
+            </label>
+          </div>
+          <div class="water-row">
+            <label for="waterInterval">Remind me every</label>
+            <input type="number" id="waterInterval" min="1" max="480" step="1" value="60" />
+            <span>min</span>
+          </div>
+          <div class="preset-chips water-presets">
+            <button class="chip" data-water="30">30m</button>
+            <button class="chip" data-water="45">45m</button>
+            <button class="chip" data-water="60">1h</button>
+            <button class="chip" data-water="90">1.5h</button>
+            <button class="chip" data-water="120">2h</button>
+          </div>
+          <p id="waterHint" class="comp-hint"></p>
+        </div>
       </section>
 
       <!-- 4. COMPANION PANEL: choose a character, how it moves -->
@@ -789,6 +1141,20 @@ export class CompanionViewProvider implements vscode.WebviewViewProvider {
             </label>
           </div>
           <p id="desktopHint" class="comp-hint">Lets your companion leave the sidebar and roam your whole screen, on top of any app.</p>
+        </div>
+
+        <div class="card" id="dialogueCard">
+          <h3 class="comp-title">Dialogue <span id="dlgChar" class="dlg-char"></span></h3>
+          <p class="comp-hint">Choose what your companion says in each situation. Add several lines (one per row) and it picks one at random.</p>
+          <select id="dlgScenario" class="priority-select dlg-select" aria-label="Scenario"></select>
+          <p id="dlgHint" class="comp-hint"></p>
+          <textarea id="dlgText" class="dlg-text" rows="5" spellcheck="true" aria-label="Lines the companion says"></textarea>
+          <p id="dlgVars" class="comp-hint"></p>
+          <div class="dlg-actions">
+            <button id="dlgSave" class="btn primary small">Save</button>
+            <button id="dlgTest" class="btn secondary small" title="Hear it from your companion now">▶ Preview</button>
+            <button id="dlgReset" class="btn secondary small" title="Go back to the default lines">Reset</button>
+          </div>
         </div>
       </section>
     </main>

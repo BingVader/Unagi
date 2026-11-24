@@ -1,17 +1,39 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-/** Dialogue for one character. `{n} {s} {t} {when} {p} {ps}` are filled in by fillLine(). */
+/** Every scenario the companion speaks about. Each holds one or more alternatives; one is picked at random. */
 export interface LineSet {
   welcome: string[];
   pet: string[];
-  taskDone: string[];
-  allDone: string[];
-  taskAdded: string;
-  reminder: string;
-  ending: string;
   chatter: string[];
+  taskAdded: string[];
+  taskDone: string[];
+  sprintComplete: string[];
+  reminder: string[];
+  ending: string[];
+  water: string[];
+  focusDone: string[];
+  breakDone: string[];
+  newDay: string[];
 }
+
+export type LineKey = keyof LineSet;
+
+/** Scenario metadata for the dialogue editor in the sidebar. */
+export const SCENARIOS: Array<{ key: LineKey; label: string; hint: string; vars: string[] }> = [
+  { key: 'welcome', label: 'Greeting', hint: 'When the companion appears or you switch characters.', vars: [] },
+  { key: 'pet', label: 'Petting', hint: 'When you click the companion.', vars: [] },
+  { key: 'chatter', label: 'Idle chatter', hint: 'Things it says now and then while idle.', vars: [] },
+  { key: 'taskAdded', label: 'Task added', hint: 'When you add a task.', vars: ['{t} task text', '{sprint} sprint name'] },
+  { key: 'taskDone', label: 'Task completed', hint: 'When you finish a task.', vars: ['{t} task text', '{sprint} sprint name'] },
+  { key: 'sprintComplete', label: 'Sprint completed', hint: 'When every task in a sprint is done.', vars: ['{sprint} sprint name'] },
+  { key: 'reminder', label: 'High-priority reminder', hint: 'Periodic nudge about pending high-priority tasks.', vars: ['{n} task count', '{s} plural "s"'] },
+  { key: 'ending', label: 'Sprint ending soon', hint: 'When a sprint ends soon with work left.', vars: ['{sprint} sprint name', '{when} today / tomorrow', '{p} tasks left', '{ps} plural "s"'] },
+  { key: 'water', label: 'Water reminder', hint: 'Every time it is time to drink water.', vars: [] },
+  { key: 'focusDone', label: 'Focus session finished', hint: 'When a focus timer ends and the break begins.', vars: [] },
+  { key: 'breakDone', label: 'Break finished', hint: 'When a break ends.', vars: [] },
+  { key: 'newDay', label: 'New day (daily sprints)', hint: 'When a daily sprint resets for the new day.', vars: ['{sprint} sprint name', '{p} tasks to do', '{ps} plural "s"'] }
+];
 
 export interface AnimDef {
   /** Absolute path of the PNG strip (frames laid out in one row). */
@@ -61,12 +83,16 @@ const CROAGUNK: CharacterDef = {
   lines: {
     welcome: ['Croa-gunk! Total awareness engaged.', "Gunk! I'll keep watch over your sprint."],
     pet: ['Gunk!', '*puffs cheek sacs happily*', 'Croa...', 'Careful, my fingers are poisonous!'],
+    chatter: ['Unagi... stay aware.', 'Croak. Everything is quiet... for now.', 'Stretch those shoulders!'],
+    taskAdded: ['Gunk. Noted: "{t}"'],
     taskDone: ['Poison Jab! Task down!', 'Gunk-tastic! One less to worry about.', 'Croa! Nicely done!'],
-    allDone: ['Every task done! Sprint cleared!'],
-    taskAdded: 'Gunk. Noted: "{t}"',
-    reminder: 'Croa! {n} high-priority task{s} still pending!',
-    ending: 'Sprint ends {when} with {p} task{ps} left!',
-    chatter: ['Unagi... stay aware.', 'Hydrate, coder.', 'Croak. Everything is quiet... for now.', 'Stretch those shoulders!']
+    sprintComplete: ['Every task done! {sprint} cleared!', 'Croa-croa! Sprint complete!'],
+    reminder: ['Croa! {n} high-priority task{s} still pending!'],
+    ending: ['{sprint} ends {when} with {p} task{ps} left!'],
+    water: ['Hydrate, coder! Time for some water.', 'Croak! Water break, now.', 'Even a poison type needs water. Drink up!'],
+    focusDone: ['Focus session complete! Take a short break.'],
+    breakDone: ['Break over. Ready for total awareness again?'],
+    newDay: ['New day, fresh {sprint}! {p} task{ps} to go.']
   }
 };
 
@@ -74,13 +100,32 @@ const CROAGUNK: CharacterDef = {
 const GENERIC_LINES: LineSet = {
   welcome: ['Total awareness engaged.'],
   pet: ['Hey there!'],
+  chatter: ['Stay aware.', 'Steady progress wins the sprint.'],
+  taskAdded: ['Noted: "{t}"'],
   taskDone: ['Task done. Nice work!'],
-  allDone: ['Every task done! Sprint cleared!'],
-  taskAdded: 'Noted: "{t}"',
-  reminder: '{n} high-priority task{s} still pending!',
-  ending: 'Sprint ends {when} with {p} task{ps} left!',
-  chatter: ['Stay aware.', 'Hydrate!']
+  sprintComplete: ['Every task done! {sprint} cleared!'],
+  reminder: ['{n} high-priority task{s} still pending!'],
+  ending: ['{sprint} ends {when} with {p} task{ps} left!'],
+  water: ['Time for some water. Stay hydrated!'],
+  focusDone: ['Focus session complete! Take a short break.'],
+  breakDone: ['Break finished. Ready to focus again?'],
+  newDay: ['New day, fresh {sprint}! {p} task{ps} to go.']
 };
+
+/** Merge a manifest's (or the user's) lines over a base set. Strings become one-item lists; `allDone` is the old name of `sprintComplete`. */
+export function mergeLines(base: LineSet, extra: any): LineSet {
+  const out: LineSet = { ...base };
+  if (!extra || typeof extra !== 'object') return out;
+  const src: any = { ...extra };
+  if (src.sprintComplete == null && src.allDone != null) src.sprintComplete = src.allDone;
+  for (const key of Object.keys(base) as LineKey[]) {
+    const v = src[key];
+    const list = (Array.isArray(v) ? v : typeof v === 'string' ? [v] : [])
+      .map((x: unknown) => String(x).trim()).filter(Boolean);
+    if (list.length) out[key] = list;
+  }
+  return out;
+}
 
 /** JSON.parse that tolerates a UTF-8 BOM (Windows tools like to add one). */
 function readJson(file: string): any {
@@ -134,7 +179,7 @@ function readSpriteCharacter(base: string, manifest: any, id: string, custom: bo
     height: Number(manifest.height) || 130,
     anims,
     custom: custom || undefined,
-    lines: { ...GENERIC_LINES, ...(manifest.lines || {}) }
+    lines: mergeLines(GENERIC_LINES, manifest.lines)
   };
 }
 
@@ -173,7 +218,7 @@ function loadUserCharacters(userDir: string, existing: CharacterDef[]): Characte
         anims: {},
         image: { file, w: Number(m.w) || 100, h: Number(m.h) || 130 },
         custom: true,
-        lines: { ...GENERIC_LINES, ...(m.lines || {}) }
+        lines: mergeLines(GENERIC_LINES, m.lines)
       });
     } catch {
       /* unreadable or half-written; ignore */
@@ -191,17 +236,19 @@ export function pickLine(lines: string[]): string {
   return lines[Math.floor(Math.random() * lines.length)] ?? '';
 }
 
+/** Fill `{name}` placeholders; `{s}` / `{ps}` become "s" when `n` / `p` is more than one. */
 export function fillLine(
   template: string,
-  v: { n?: number; t?: string; when?: string; p?: number }
+  v: { n?: number; t?: string; when?: string; p?: number; sprint?: string }
 ): string {
   const n = v.n ?? 0;
   const p = v.p ?? 0;
   return template
-    .replace('{n}', String(n))
-    .replace('{s}', n > 1 ? 's' : '')
-    .replace('{t}', v.t ?? '')
-    .replace('{when}', v.when ?? '')
-    .replace('{p}', String(p))
-    .replace('{ps}', p > 1 ? 's' : '');
+    .replace(/\{n\}/g, String(n))
+    .replace(/\{s\}/g, n > 1 ? 's' : '')
+    .replace(/\{t\}/g, v.t ?? '')
+    .replace(/\{when\}/g, v.when ?? '')
+    .replace(/\{p\}/g, String(p))
+    .replace(/\{ps\}/g, p > 1 ? 's' : '')
+    .replace(/\{sprint\}/g, v.sprint ?? 'your sprint');
 }

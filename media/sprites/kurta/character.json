@@ -18,11 +18,15 @@
   "lines": {
     "welcome": ["Ready when you are. Let's get this sprint moving.", "Good to see you! Let's make today count."],
     "pet": ["Hey! Careful there.", "Haha, all good.", "Yes? Need something?"],
+    "chatter": ["Take a short stretch if you need it.", "Steady progress wins the sprint."],
+    "taskAdded": ["Noted: \"{t}\""],
     "taskDone": ["Well done! One down.", "That's progress. Nice work."],
-    "allDone": ["Everything's done. Sprint cleared. Well done!"],
-    "taskAdded": "Noted: \"{t}\"",
-    "reminder": "{n} high-priority task{s} still pending. Let's get to it.",
-    "ending": "Sprint ends {when} with {p} task{ps} left!",
-    "chatter": ["Stay hydrated.", "Take a short stretch if you need it.", "Steady progress wins the sprint."]
+    "sprintComplete": ["Everything's done. {sprint} cleared. Well done!"],
+    "reminder": ["{n} high-priority task{s} still pending. Let's get to it."],
+    "ending": ["{sprint} ends {when} with {p} task{ps} left!"],
+    "water": ["Time for a glass of water. Stay hydrated.", "Water break! Your brain will thank you."],
+    "focusDone": ["Focus session done. Take a breather."],
+    "breakDone": ["Break's over. Ready for another round?"],
+    "newDay": ["New day, fresh {sprint}. {p} task{ps} to tackle."]
   }
 }

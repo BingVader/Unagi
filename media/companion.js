@@ -2,7 +2,8 @@
  * The sidebar's Companion tab: pick a character, choose how it moves, toggle the
  * companion and the desktop companion. The extension sends the data ('companionPanel')
  * and applies every change as a setting, so the sidebar, the settings UI and the
- * command palette always agree.
+ * command palette always agree. It also hosts the dialogue editor: what the character
+ * says in each situation (task done, sprint complete, water reminder...).
  */
 (function () {
   'use strict';
@@ -13,6 +14,9 @@
   };
 
   let api = null;
+  let dlg = null;            // { character, scenarios } from the extension
+  let dlgCharacter = null;   // which character the editor is showing
+  let dlgDirty = false;      // unsaved edits in the textarea
   const $ = (id) => document.getElementById(id);
 
   function post(msg) { if (api) api.postMessage(msg); }
@@ -96,6 +100,56 @@
       ? 'Lets your companion leave the sidebar and roam your whole screen, on top of any app. It replaces the in-view companion while on.'
       : 'Roaming the whole screen is Windows-only for now. The in-view companion works everywhere.';
     $('desktopCard').classList.toggle('disabled', !s.desktopSupported);
+
+    renderDialogue(d.dialogue);
+  }
+
+  // ---------------- dialogue editor ----------------
+  function currentScenario() {
+    const key = $('dlgScenario').value;
+    return dlg && dlg.scenarios.find((x) => x.key === key);
+  }
+
+  function showScenario() {
+    const sc = currentScenario();
+    if (!sc) return;
+    $('dlgText').value = sc.lines.join('\n');
+    $('dlgHint').textContent = sc.hint;
+    $('dlgVars').textContent = sc.vars.length ? 'You can use: ' + sc.vars.join(', ') : '';
+    $('dlgReset').disabled = !sc.custom;
+    dlgDirty = false;
+  }
+
+  function renderDialogue(data) {
+    if (!data || !$('dlgScenario')) return;
+    const sel = $('dlgScenario');
+    const switched = dlgCharacter !== data.character;
+    const keep = sel.value;
+    dlg = data;
+    dlgCharacter = data.character;
+    $('dlgChar').textContent = '· ' + data.character;
+
+    sel.textContent = '';
+    data.scenarios.forEach((sc) => {
+      const o = document.createElement('option');
+      o.value = sc.key;
+      o.textContent = sc.label + (sc.custom ? '  ✎' : '');
+      sel.appendChild(o);
+    });
+    if (!switched && data.scenarios.some((sc) => sc.key === keep)) sel.value = keep;
+
+    // Don't throw away what the user is typing when the panel refreshes for an unrelated reason.
+    if (switched || !dlgDirty) showScenario();
+    else {
+      const sc = currentScenario();
+      $('dlgHint').textContent = sc ? sc.hint : '';
+      $('dlgVars').textContent = sc && sc.vars.length ? 'You can use: ' + sc.vars.join(', ') : '';
+      $('dlgReset').disabled = !(sc && sc.custom);
+    }
+  }
+
+  function dialogueLines() {
+    return $('dlgText').value.split('\n').map((l) => l.trim()).filter(Boolean);
   }
 
   function init(vscodeApi) {
@@ -105,6 +159,18 @@
     $('compDesktop').addEventListener('change', (e) => post({ command: 'setDesktopCompanion', value: e.target.checked }));
     document.querySelectorAll('#moveSeg [data-move]').forEach((b) => {
       b.addEventListener('click', () => post({ command: 'setMovement', value: b.dataset.move }));
+    });
+
+    $('dlgScenario').addEventListener('change', showScenario);
+    $('dlgText').addEventListener('input', () => { dlgDirty = true; });
+    $('dlgSave').addEventListener('click', () => {
+      dlgDirty = false;
+      post({ command: 'saveDialogue', key: $('dlgScenario').value, lines: dialogueLines() });
+    });
+    $('dlgTest').addEventListener('click', () => post({ command: 'testDialogue', key: $('dlgScenario').value, lines: dialogueLines() }));
+    $('dlgReset').addEventListener('click', () => {
+      dlgDirty = false;
+      post({ command: 'resetDialogue', key: $('dlgScenario').value });
     });
   }
 

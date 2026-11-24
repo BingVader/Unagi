@@ -798,3 +798,75 @@ html, body {
   .char-card, .seg button, .switch-track, .switch-track::after, .char-del { transition: none; }
   .char-card:hover { transform: none; }
 }
+
+/* ============================================================= */
+/* 5. SPRINT SWITCHER, WATER REMINDER, DIALOGUE EDITOR           */
+/* ============================================================= */
+.sprint-switcher { display: flex; align-items: flex-start; gap: 6px; }
+.sprint-tabs { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.sprint-tab {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 4px 9px; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  color: var(--muted); background: transparent; border: 1px solid var(--card-border); border-radius: 14px;
+}
+.sprint-tab:hover { color: var(--fg); background: rgba(255, 255, 255, 0.06); }
+.sprint-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sprint-tab.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+.sprint-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sprint-tab-count { opacity: 0.75; font-weight: 500; flex-shrink: 0; }
+
+.new-sprint { display: flex; flex-direction: column; gap: 8px; }
+.new-sprint.hidden { display: none; }
+.new-sprint input[type="text"], .sprint-title-input, .water-row input {
+  font: inherit; font-size: 12px; color: var(--input-fg); background: var(--input-bg);
+  border: 1px solid var(--input-border); border-radius: 5px; padding: 5px 8px; min-width: 0;
+}
+.new-sprint input[type="text"] { width: 100%; }
+.new-sprint input:focus, .sprint-title-input:focus, .water-row input:focus, .dlg-text:focus { outline: 1px solid var(--accent); }
+.new-sprint .priority-select { flex: 1; min-width: 0; }
+
+.sprint-title-input { width: 100%; font-weight: 700; }
+.badge-personal { background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.35); }
+.sprint-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+.sprint-tools .chip { font-size: 10px; padding: 3px 8px; }
+.sprint-tools .chip:disabled { opacity: 0.4; cursor: default; }
+.sprint-tools .chip.danger:hover:not(:disabled) { color: #fff; background: var(--danger); border-color: var(--danger); }
+
+.water-card.off .water-row, .water-card.off .water-presets { opacity: 0.5; }
+.water-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.water-row input { width: 70px; text-align: center; }
+.water-presets { margin-top: 10px; }
+
+.dlg-char { color: var(--muted); font-weight: 500; }
+.dlg-select { width: 100%; margin-top: 8px; }
+.dlg-text {
+  width: 100%; margin-top: 8px; resize: vertical; min-height: 84px;
+  font: inherit; font-size: 12px; line-height: 1.5; color: var(--input-fg); background: var(--input-bg);
+  border: 1px solid var(--input-border); border-radius: 5px; padding: 6px 8px;
+}
+.dlg-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dlg-actions .btn:disabled { opacity: 0.45; cursor: default; }
+
+/* Sprints & tasks: stay inside a narrow sidebar, and use the room in a wide editor tab. */
+.sprint-title-row { gap: 8px; flex-wrap: wrap; min-width: 0; }
+.sprint-title { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+.sprint-title-row .badge { flex-shrink: 0; white-space: nowrap; }
+.sprint-dates { overflow-wrap: anywhere; }
+.task-text { min-width: 0; overflow-wrap: anywhere; }
+.task-item > * { flex-shrink: 0; }
+.task-item > .task-text { flex-shrink: 1; }
+.filter-bar { flex-wrap: wrap; }
+.input-row { flex-wrap: wrap; }
+.input-row input { min-width: 0; }
+.add-task-card .input-row input { flex: 1 1 120px; }
+.add-task-card .priority-select, .add-task-card .btn { min-height: 28px; }
+.sprint-tools .chip { white-space: nowrap; }
+@media (max-width: 300px) {
+  .add-task-card .input-row input { flex-basis: 100%; }
+  .add-task-card .priority-select { flex: 1; }
+  .sprint-tab { font-size: 10.5px; padding: 3px 7px; }
+  #newSprintBtn { padding: 4px 6px; }
+}
+@media (min-width: 560px) {
+  .sprint-switcher, #sprintPanel .card, #sprintPanel .filter-bar, #sprintPanel .tasks-list, #sprintPanel .reminder-banner { max-width: 760px; width: 100%; margin-left: auto; margin-right: auto; }
+}

@@ -54,7 +54,11 @@ export function activate(context: vscode.ExtensionContext): void {
     () => { void desktopSetting().update('enabled', false, vscode.ConfigurationTarget.Global); },
     () => provider.currentCharacter()
   );
-  context.subscriptions.push(desktop, provider.onDidAlert(alert => desktop.say(alert)));
+  context.subscriptions.push(
+    desktop,
+    provider.onDidAlert(alert => desktop.say(alert)),
+    provider.onDidChangeDialogue(() => desktop.sendCharacter())
+  );
 
   const syncDesktop = () => {
     if (desktopSetting().get<boolean>('enabled', false)) void desktop.start();
@@ -62,6 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   syncDesktop();
 
+  registerCmd('unagi.sayQuote', () => provider.sayQuote());
   registerCmd('unagi.chooseCharacter', () => { void provider.chooseCharacter(); });
 
   // Custom characters made from photos live in global storage, so they survive extension updates.
@@ -85,7 +90,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (e.affectsConfiguration('unagi.desktopCompanion')) syncDesktop();
       if (e.affectsConfiguration('unagi.companion.character')) desktop.sendCharacter();
       if (e.affectsConfiguration('unagi.companion.movement')) desktop.sendMode();
-      if (e.affectsConfiguration('unagi.companion') || e.affectsConfiguration('unagi.desktopCompanion')) {
+      if (e.affectsConfiguration('unagi.water')) provider.resetWaterTimer();
+      if (e.affectsConfiguration('unagi.quotes')) provider.resetQuoteTimer();
+      if (e.affectsConfiguration('unagi.companion') || e.affectsConfiguration('unagi.desktopCompanion') || e.affectsConfiguration('unagi.water')) {
         provider.broadcastCompanionConfig();
       }
     })

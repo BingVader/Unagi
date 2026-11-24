@@ -9,9 +9,9 @@
  * Public API (window.UnagiPet), driven by main.js:
  *   init({ openTab })        build DOM + start the loop
  *   configure(cfg)           { enabled, character }
- *   onState(state)           every 'sync'; diffed to react to task changes
- *   onTimerAlert(message)    focus/break finished
- *   onReminder(count)        high-priority tasks still pending
+ *   onState(state)           every 'sync'; used for the greeting when the view opens
+ *   onSay({ text, mood, sticky, goto, tab })
+ *                            something the extension wants announced (task done, water, new day...)
  */
 (function () {
   'use strict';
@@ -56,9 +56,10 @@
   const FALLBACK = {
     id: 'croagunk', name: 'Croagunk', kind: 'vector', facing: 'right', height: VECTOR_SIZE, anims: {},
     lines: {
-      welcome: ['Croa-gunk! Total awareness engaged.'], pet: ['Gunk!'], taskDone: ['Task down!'], allDone: ['Every task done!'],
-      taskAdded: 'Noted: "{t}"', reminder: '{n} high-priority task{s} still pending!',
-      ending: 'Sprint ends {when} with {p} task{ps} left!', chatter: ['Unagi... stay aware.']
+      welcome: ['Croa-gunk! Total awareness engaged.'], pet: ['Gunk!'], chatter: ['Unagi... stay aware.'],
+      taskAdded: ['Noted: "{t}"'], taskDone: ['Task down!'], sprintComplete: ['Every task done!'],
+      reminder: ['{n} high-priority task{s} still pending!'], ending: ['{sprint} ends {when} with {p} task{ps} left!'],
+      water: ['Time for some water!'], focusDone: ['Focus session complete!'], breakDone: ['Break over!'], newDay: ['New day!']
     }
   };
 
@@ -68,7 +69,8 @@
   const hooks = { openTab: null };
   // movement: 'free' = roam everywhere (and perch on UI), 'floor' = walk left/right along the bottom edge
   let cfg = { enabled: true, movement: 'free' };
-  let dropping = false;                               // falling back to the floor after being carried
+  let vy = 0;                                         // fall speed (px/s), grows while in the air
+  let dropping = false;                               // in the air after being let go: falls until it reaches the floor, then lands
   let def = FALLBACK;
   let PW = VECTOR_SIZE, PH = VECTOR_SIZE, FEET = 0.94;
 
@@ -81,7 +83,7 @@
   let current = null, bubbleTimer = null;
   const queue = [];
   let nextThink = 0, lastActive = Date.now(), lastFrame = 0;
-  let prev = null;
+  let seen = false;       // the first sync after the view opened has been handled
   let started = false;
 
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -97,12 +99,13 @@
 
   /** Pick a line (or fill a template) from the current character's dialogue. */
   function L(key, v) {
-    const t = def.lines[key] != null ? def.lines[key] : FALLBACK.lines[key];
-    if (Array.isArray(t)) return pick(t);
+    let t = def.lines && def.lines[key] != null ? def.lines[key] : FALLBACK.lines[key];
+    if (Array.isArray(t)) t = t.length ? pick(t) : FALLBACK.lines[key][0];
     v = v || {};
     const n = v.n || 0, p = v.p || 0;
-    return String(t).replace('{n}', n).replace('{s}', n > 1 ? 's' : '').replace('{t}', v.t || '')
-      .replace('{when}', v.when || '').replace('{p}', p).replace('{ps}', p > 1 ? 's' : '');
+    return String(t).replace(/\{n\}/g, n).replace(/\{s\}/g, n > 1 ? 's' : '').replace(/\{t\}/g, v.t || '')
+      .replace(/\{when\}/g, v.when || '').replace(/\{p\}/g, p).replace(/\{ps\}/g, p > 1 ? 's' : '')
+      .replace(/\{sprint\}/g, v.sprint || 'your sprint');
   }
 
   // ---------------------------------------------------------------
@@ -202,7 +205,14 @@
     strip.style.animation = 'none';
     void strip.offsetWidth; // restart
     if (a.frames > 1) {
-      strip.style.animation = 'pet-strip ' + (a.frames * a.frameMs) + 'ms steps(' + a.frames + ') ' + (a.loop ? 'infinite' : '1');
+      if (dropping && a === def.anims.fall) {
+        // Falling: play the fall once and hold its last frame until the floor is reached (the landing takes over then).
+        const last = a.frames - 1;
+        strip.style.setProperty('--end', (-last * PW) + 'px');
+        strip.style.animation = 'pet-strip ' + (last * a.frameMs) + 'ms steps(' + last + ') 1 forwards';
+      } else {
+        strip.style.animation = 'pet-strip ' + (a.frames * a.frameMs) + 'ms steps(' + a.frames + ') ' + (a.loop ? 'infinite' : '1');
+      }
     }
   }
 
@@ -218,22 +228,38 @@
     applyClasses();
   }
 
-  // Dropped after being carried: fall, land, then back to normal.
-  function startFall() {
-    if (!isSprite() || !hasAnim('fall')) return;
-    seq = hasAnim('land') ? ['fall', 'land'] : ['fall'];
-    seqIdx = 0;
-    const total = seq.reduce((s, n) => s + def.anims[n].frames * def.anims[n].frameMs, 0);
+  // Let go of the character: if it is above the floor it falls (the fall animation repeats while it is in the
+  // air) and lands when it reaches the floor; if it is already on the floor it just settles with the landing.
+  function release() {
+    seq = null;
     clearTimeout(seqTimer);
-    seqTimer = setTimeout(() => { seq = null; applyClasses(); }, total + 400); // safety net
+    if (y < floorY() - 2) { dropping = true; vy = 0; applyClasses(); return; }
+    y = floorY();
+    land();
+  }
+
+  // The character just reached the floor: play the landing (when it has one), then carry on.
+  function land() {
+    dropping = false;
+    clearTimeout(seqTimer);
+    if (isSprite() && hasAnim('land')) {
+      seq = ['land'];
+      seqIdx = 0;
+      const a = def.anims.land;
+      seqTimer = setTimeout(() => { seq = null; applyClasses(); }, a.frames * a.frameMs + 400); // safety net
+    } else {
+      seq = null;
+      nextThink = performance.now() + 1500;
+    }
     applyClasses();
+    render();
   }
 
   function applyClasses() {
     let m = dragging ? 'drag' : moving ? 'walk' : mood || rest;
     if (isSprite()) {
       const flip = (face > 0) !== (def.facing === 'right');
-      const name = seq ? seq[seqIdx] : animFor(m);
+      const name = dropping && !dragging && hasAnim('fall') ? 'fall' : seq ? seq[seqIdx] : animFor(m);
       playAnim(name);
       pet.className = 'pet ' + (m === 'sleep' ? 'idle' : m) + (flip ? ' flip' : '') + (current ? ' talking' : '');
       return;
@@ -309,7 +335,7 @@
 
   function think(ts) {
     nextThink = ts + rand(3500, 9000);
-    if (reduceMotion || dragging || moving || current || seq) return;
+    if (reduceMotion || dragging || dropping || moving || current || seq) return;
     const canSit = def.kind === 'vector' || hasAnim('sit');
     const canSleep = def.kind === 'vector' || hasAnim('sleep');
     if (canSleep && Date.now() - lastActive > 150000 && rest !== 'sleep') { rest = 'sleep'; applyClasses(); return; }
@@ -326,11 +352,12 @@
     const dt = Math.min(0.1, (ts - lastFrame) / 1000 || 0);
     lastFrame = ts;
     if (dropping && !dragging) {
-      y = Math.min(floorY(), y + 900 * dt);              // gravity
-      if (y >= floorY()) { dropping = false; applyClasses(); }
+      vy += 700 * dt;                                    // gravity: starts slow, so the fall is visible
+      y = Math.min(floorY(), y + vy * dt);
+      if (y >= floorY()) land();                          // reached the floor: use the landing
       render();
     }
-    if (moving && !dragging) {
+    if (moving && !dragging && !dropping) {
       const dx = tx - x, dy = ty - y;
       const dist = Math.hypot(dx, dy);
       const step = speed * dt;
@@ -422,7 +449,7 @@
       if (!down) return;
       if (!dragged && Math.hypot(e.clientX - startX, e.clientY - startY) < 5) return;
       dragged = true;
-      dragging = true; moving = false; dropping = false; seq = null;
+      dragging = true; moving = false; dropping = false; seq = null; clearTimeout(seqTimer);
       x = clamp(e.clientX - offX, 0, maxX());
       y = clamp(e.clientY - offY, 0, maxY());
       applyClasses();
@@ -435,9 +462,7 @@
       if (dragged) {
         dragging = false;
         nextThink = performance.now() + 3000;
-        if (onFloor() && y < floorY() - 2) dropping = true;   // let go mid-air: gravity takes him back to the floor
-        startFall();
-        applyClasses();
+        release();                                            // let go: falls to the floor (if in the air), then lands
       } else {
         queue.length = 0;
         if (current) dismiss();
@@ -455,43 +480,25 @@
   const openSprint = () => hooks.openTab && hooks.openTab('sprint');
 
   function onState(state) {
-    if (!state || !state.sprint || !started) { prev = snapshot(state); return; }
-    const tasks = state.sprint.tasks || [];
-    const now = snapshot(state);
-
-    if (!prev) {
-      // First sync after the view opens: greet, then flag anything urgent.
-      setTimeout(() => {
-        say(L('welcome'), { mood: 'happy' });
-        const pending = tasks.filter((t) => t.status !== 'done');
-        const high = pending.filter((t) => t.priority === 'high');
-        const days = daysLeft(state.sprint.endDate);
-        if (days !== null && days <= 2 && pending.length) {
-          say(L('ending', { when: days <= 0 ? 'today' : 'in ' + days + ' day' + (days > 1 ? 's' : ''), p: pending.length }),
-            { sticky: true, mood: 'angry', onClick: openSprint, goto: document.getElementById('sprintProgressFill') });
-        }
-        if (high.length) {
-          say(L('reminder', { n: high.length }), { sticky: true, mood: 'alert', onClick: openSprint, goto: document.getElementById('reminderBanner') });
-        }
-      }, 1200);
-    } else {
-      const doneNow = tasks.filter((t) => t.status === 'done');
-      const newlyDone = doneNow.filter((t) => prev.status[t.id] && prev.status[t.id] !== 'done');
-      const added = tasks.filter((t) => !(t.id in prev.status));
-      if (newlyDone.length && doneNow.length === tasks.length) say(L('allDone'), { mood: 'happy' });
-      else if (newlyDone.length) say(L('taskDone'), { mood: 'happy' });
-      else if (added.length) {
-        const t = added[added.length - 1].text;
-        say(L('taskAdded', { t: t.length > 40 ? t.slice(0, 37) + '…' : t }));
+    if (!state || !Array.isArray(state.sprints) || !started) { seen = !!(state && state.sprints); return; }
+    if (seen) return;                                     // only the first sync after the view opens greets
+    seen = true;
+    // Greet, then flag anything urgent.
+    setTimeout(() => {
+      say(L('welcome'), { mood: 'happy' });
+      const pending = state.sprints.flatMap((sp) => sp.tasks.filter((t) => t.status !== 'done').map((t) => ({ sp, t })));
+      const high = pending.filter((x) => x.t.priority === 'high');
+      // One-off sprints ending soon with work left (daily sprints end every night, so they don't count).
+      const ending = state.sprints.map((sp) => ({ sp, days: sp.repeat === 'daily' ? null : daysLeft(sp.endDate), left: sp.tasks.filter((t) => t.status !== 'done').length }))
+        .find((x) => x.days !== null && x.days <= 2 && x.left > 0);
+      if (ending) {
+        say(L('ending', { when: ending.days <= 0 ? 'today' : 'in ' + ending.days + ' day' + (ending.days > 1 ? 's' : ''), p: ending.left, sprint: ending.sp.name }),
+          { sticky: true, mood: 'angry', onClick: openSprint, goto: document.getElementById('sprintProgressFill') });
       }
-    }
-    prev = now;
-  }
-
-  function snapshot(state) {
-    const status = {};
-    if (state && state.sprint) (state.sprint.tasks || []).forEach((t) => { status[t.id] = t.status; });
-    return { status };
+      if (high.length) {
+        say(L('reminder', { n: high.length }), { sticky: true, mood: 'alert', onClick: openSprint, goto: document.getElementById('reminderBanner') });
+      }
+    }, 1200);
   }
 
   function daysLeft(endDate) {
@@ -500,12 +507,21 @@
     return Math.ceil((end - Date.now()) / 86400000);
   }
 
-  function onTimerAlert(message) {
-    say(String(message || '').replace(/^\S*\s*UNAGI:\s*/, ''), { sticky: true, mood: 'alert', goto: document.getElementById('headerTimerPill'), onClick: () => hooks.openTab && hooks.openTab('timer') });
-  }
+  // Elements the companion walks over to when it announces something.
+  const GOTO = {
+    reminder: 'reminderBanner', timer: 'headerTimerPill', water: 'waterCard', sprint: 'sprintProgressFill'
+  };
 
-  function onReminder(count) {
-    say(L('reminder', { n: count }), { sticky: true, mood: 'alert', onClick: openSprint, goto: document.getElementById('reminderBanner') });
+  /** Something the extension wants announced: task done, water reminder, focus finished, new day... */
+  function onSay(msg) {
+    if (!msg || !msg.text) return;
+    const text = String(msg.text).replace(/^\S*\s*UNAGI:\s*/, '');
+    say(text, {
+      sticky: !!msg.sticky,
+      mood: msg.mood || null,
+      goto: GOTO[msg.goto] ? document.getElementById(GOTO[msg.goto]) : null,
+      onClick: msg.tab && hooks.openTab ? () => hooks.openTab(msg.tab) : null
+    });
   }
 
   function configure(next) {
@@ -519,7 +535,7 @@
     if (moveChanged && onFloor() && !dragging) {
       // Switched to floor mode while up in the air: stop what he was doing and fall back down.
       moving = false; arriveCb = null;
-      if (y < floorY() - 2) dropping = true;
+      if (y < floorY() - 2) { dropping = true; vy = 0; }     // gravity takes him down, then the landing plays
       applyClasses();
     }
 
@@ -531,7 +547,7 @@
     layer.style.display = cfg.enabled ? '' : 'none';
     if (!cfg.enabled) { queue.length = 0; if (current) dismiss(); return; }
     // Greet on a switch or re-enable, but not at startup (the first sync already greets).
-    if ((changed || !was) && prev !== null) { wake(); say(L('welcome'), { mood: 'happy' }); }
+    if ((changed || !was) && seen) { wake(); say(L('welcome'), { mood: 'happy' }); }
   }
 
   function init(h) {
@@ -555,5 +571,5 @@
     requestAnimationFrame(loop);
   }
 
-  window.UnagiPet = { init, configure, onState, onTimerAlert, onReminder, croagunkSvg: CROAGUNK_SVG };
+  window.UnagiPet = { init, configure, onState, onSay, croagunkSvg: CROAGUNK_SVG };
 })();
