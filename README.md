@@ -46,6 +46,39 @@
   - `☕ 5m Break` (Mindful rest and stretch)
 - **Status Bar Integration**: Live timer and task progress display in the VS Code status bar (`⚡ UNAGI: $(play) 25:00 | $(checklist) 3/4`).
 
+### 6. 🐸 Roaming Companion
+- **A character that lives in UNAGI**: your companion wanders the whole UNAGI view, perching on cards, tabs and the header. Choose who it is (see **Characters** below); Croagunk is the default.
+- **Delivers your alerts**: Walks to the relevant spot and speaks up for high-priority reminders, sprint deadlines (≤ 2 days left), and focus/break completion. Click an alert bubble to jump to the right tab.
+- **Reacts to your tasks**: Celebrates completed tasks and acknowledges new ones.
+- **Interactive**: Click to pet, drag to carry. Respects `prefers-reduced-motion`.
+- **Need more room?** Run `UNAGI: Open in Editor Tab` to give the companion a full editor-sized area to roam.
+
+> VS Code doesn't let extensions draw outside their own views, so this in-view companion roams within UNAGI's sidebar or editor tab. For the whole screen, turn on the Desktop Companion below.
+
+#### 🧭 Movement
+Open the **🐸 Companion** tab in the sidebar and pick how your companion moves (or set `unagi.companion.movement`). It applies to both the in-view and the desktop companion:
+- **Walk on floor**: walks left and right along the floor (the bottom of the view, or of your screen), like a character in a side-scrolling game. Pick it up and let go and it drops back to the floor. Alerts make it walk to the spot under whatever it is talking about.
+- **Roam everywhere**: wanders across the whole view or screen, up onto cards and tabs.
+
+#### 🎭 Characters
+Pick one in the **🐸 Companion** tab of the sidebar: a card grid that refits itself from a very narrow sidebar up to a wide editor tab, with a switch to show or hide the companion, a **Create one from a photo** button, and a ✕ on each of your own characters. (Or run `UNAGI: Choose Companion Character`.) It applies to both the in-view and the desktop companion, and each character speaks in its own words.
+- **Croagunk** (built in): drawn in code.
+- **Kurta Guy**: a full sprite character with walk, alert, angry, happy, held, fall and land animations.
+- **Your own, from pictures**: click **Create one from a photo** in the sidebar (or run `UNAGI: Create Custom Character from a Photo`). The studio first asks how many images you have:
+  - **Just one image**: it bobs, sways, hops and shakes (*puppet* motion) for walking, alerts and celebrations.
+  - **Several images**: give each reaction its own picture, like Kurta Guy: *Idle* (required), *Walking*, *Alert*, *Angry*, *Happy*, *Carried*, *Falling* and *Landing*. Each can be a single image, several images (used as frames, in filename order), or an animated GIF/WebP, which is converted to a smooth ~12 fps animation. Anything you skip gets automatic puppet motion from your Idle image. Use the same size and framing for all your images for the best result, and tell the studio which way your pictures face.
+
+  Either way you can remove a plain background (with an adjustable tolerance), trim empty space, set the size and preview every reaction before saving. For a clean cut-out, use PNGs that already have a transparent background. Everything is processed locally, saved in VS Code's per-user storage (it survives extension updates), and never uploaded anywhere. Remove a character with the ✕ in the sidebar or `UNAGI: Delete a Custom Character`.
+- **Adding a sprite character (developers)**: create `media/sprites/<id>/` with a `character.json` (name, display height, and which source animation file plays for each of `idle`, `walk`, `alert`, `angry`, `happy`, `drag`, `fall`, `land`; see `media/sprites/kurta`) and your animated WebP/GIF/PNG files, then run `npm run sprites` (Windows). That converts them into small PNG strips plus an `atlas.json`, which both companions play. Only `idle` is required; missing animations fall back gracefully.
+
+#### 🖥️ Desktop Companion (Windows)
+Run `UNAGI: Toggle Desktop Companion` (or set `unagi.desktopCompanion.enabled`) and your companion leaves the sidebar to roam your **entire screen**, including on top of VS Code and other apps, walking along the taskbar or anywhere else. Alerts make him run over beside your cursor and speak up.
+- **Interact:** click to pet, drag to carry, click a bubble to open UNAGI, right-click for a menu (Open UNAGI / Hide).
+- **Very lightweight:** a ~24 KB native helper, ~25 MB RAM, ~0.05% CPU when idle and about 1% of one core while walking. Frames are drawn once and cached, and it redraws only when something changes (about 20 fps moving, 3 fps idle, 1.5 fps asleep).
+- **Nothing to install:** the helper is compiled once on first use with the `csc.exe` built into Windows (.NET Framework 4). It quits automatically if VS Code closes.
+- **How it's built:** the helper's source lives in this repo (`helper/UnagiPet.cs`) and ships inside the extension, but at runtime it is a separate small process that talks to VS Code over a pipe.
+- It replaces the in-view companion while on, so there is only ever one companion on screen. macOS and Linux fall back to the in-view companion for now.
+
 ---
 
 ## ⌨️ Commands
@@ -57,6 +90,12 @@ Access these commands anytime from the VS Code Command Palette (`Ctrl+Shift+P` /
 | `unagi.focus` | `UNAGI: Open Sprints, Notes & Timer` | Opens and focuses the UNAGI sidebar view. |
 | `unagi.addTask` | `UNAGI: Quick Add Sprint Task` | Quickly adds a sprint task with priority from the command prompt. |
 | `unagi.toggleTimer` | `UNAGI: Start / Pause Focus Timer` | Starts or pauses the active focus countdown timer. |
+| `unagi.openInEditor` | `UNAGI: Open in Editor Tab` | Opens UNAGI in an editor tab with more room for the companion. |
+| `unagi.toggleCompanion` | `UNAGI: Show / Hide Companion` | Shows or hides the in-view roaming companion. |
+| `unagi.toggleDesktopCompanion` | `UNAGI: Toggle Desktop Companion` | Lets the companion roam your whole screen (Windows). |
+| `unagi.chooseCharacter` | `UNAGI: Choose Companion Character` | Pick Croagunk, Kurta Guy, or one of your own. |
+| `unagi.createCharacter` | `UNAGI: Create Custom Character from a Photo` | Opens the character studio to turn a photo into a companion. |
+| `unagi.deleteCharacter` | `UNAGI: Delete a Custom Character` | Removes a character you created. |
 
 ---
 
@@ -67,6 +106,10 @@ Configure UNAGI to match your preferred working rhythm in VS Code Settings (`Ctr
 - `unagi.focusMinutes` *(number, default: `25`)*: Default focus timer duration in minutes.
 - `unagi.reminderIntervalMinutes` *(number, default: `30`)*: Interval (in minutes) for checking and notifying about pending high-priority sprint tasks.
 - `unagi.enableTaskReminders` *(boolean, default: `true`)*: Toggle periodic notification reminders for pending tasks.
+- `unagi.companion.enabled` *(boolean, default: `true`)*: Show the in-view roaming companion.
+- `unagi.desktopCompanion.enabled` *(boolean, default: `false`)*: Let the companion roam your whole screen (Windows only).
+- `unagi.companion.character` *(string, default: `croagunk`)*: Id of your companion character. Easiest to change in the sidebar's Companion tab.
+- `unagi.companion.movement` *(`free` | `floor`, default: `free`)*: `floor` walks left and right along the floor; `free` roams everywhere.
 
 ---
 

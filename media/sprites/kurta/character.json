@@ -1,0 +1,28 @@
+{
+  "id": "kurta",
+  "name": "Kurta Guy",
+  "facing": "right",
+  "height": 130,
+  "fps": 12,
+  "animations": {
+    "idle": "idle.webp",
+    "walk": "walk.webp",
+    "alert": "warn.webp",
+    "angry": "angry.webp",
+    "happy": "happy.webp",
+    "drag": "held.webp",
+    "fall": "fall.webp",
+    "land": "land.webp"
+  },
+  "once": ["fall", "land"],
+  "lines": {
+    "welcome": ["Ready when you are. Let's get this sprint moving.", "Good to see you! Let's make today count."],
+    "pet": ["Hey! Careful there.", "Haha, all good.", "Yes? Need something?"],
+    "taskDone": ["Well done! One down.", "That's progress. Nice work."],
+    "allDone": ["Everything's done. Sprint cleared. Well done!"],
+    "taskAdded": "Noted: \"{t}\"",
+    "reminder": "{n} high-priority task{s} still pending. Let's get to it.",
+    "ending": "Sprint ends {when} with {p} task{ps} left!",
+    "chatter": ["Stay hydrated.", "Take a short stretch if you need it.", "Steady progress wins the sprint."]
+  }
+}

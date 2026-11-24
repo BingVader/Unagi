@@ -418,6 +418,7 @@
       case 'sync':
         if (msg.state) {
           state = msg.state;
+          if (window.UnagiPet) window.UnagiPet.onState(state);
           renderSprint();
           renderTimer();
           if (notesArea && notesArea.value !== state.notes) {
@@ -429,6 +430,15 @@
 
       case 'timerAlert':
         renderTimer();
+        if (window.UnagiPet) window.UnagiPet.onTimerAlert(msg.message);
+        break;
+
+      case 'config':
+        if (window.UnagiPet) window.UnagiPet.configure(msg.config);
+        break;
+
+      case 'companionPanel':
+        if (window.UnagiCompanionPanel) window.UnagiCompanionPanel.render(msg.data);
         break;
 
       case 'taskReminder':
@@ -436,11 +446,14 @@
           reminderBanner.classList.remove('hidden');
           reminderText.textContent = `⚠️ Reminder: ${msg.pendingCount} high-priority task${msg.pendingCount > 1 ? 's' : ''} pending!`;
         }
+        if (window.UnagiPet) window.UnagiPet.onReminder(msg.pendingCount);
         break;
     }
   });
 
   // Initialize and notify extension host
+  if (window.UnagiPet) window.UnagiPet.init({ openTab: switchTab });
+  if (window.UnagiCompanionPanel) window.UnagiCompanionPanel.init(vscode);
   renderSprint();
   renderTimer();
   updateNotesCounts();
