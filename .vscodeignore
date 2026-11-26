@@ -8,5 +8,6 @@ media/pokemon/**
 media/characters.js
 media/dialogue.js
 media/buddy.css
+media/Icon.png
 .gitignore
 tsconfig.json

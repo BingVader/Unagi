@@ -4,7 +4,6 @@
   "description": "Achieve total workflow awareness: track active sprints, checklists, reminders, scratchpad notes, and focus timer directly in your sidebar.",
   "version": "2.3.0",
   "publisher": "BingVader",
-  "icon": "media/Icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/BingVader/Unagi.git"
@@ -17,7 +16,21 @@
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Productivity"
+    "Other"
+  ],
+  "keywords": [
+    "productivity",
+    "task-management",
+    "pomodoro",
+    "focus",
+    "timer",
+    "sprint",
+    "todo",
+    "reminders",
+    "notes",
+    "companion",
+    "developer-tools",
+    "workflow"
   ],
   "main": "./out/extension.js",
   "activationEvents": [
