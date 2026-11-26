@@ -2,6 +2,9 @@
 
 > *"Unagi is a state of total awareness. Only by achieving true Unagi can you be prepared for any danger that may befall you."*
 
+<img width="1536" height="1024" alt="Kerala Unagi_ Code, Chai, and Cool Vibes" src="https://github.com/user-attachments/assets/9fb6588e-465d-40cd-9220-a09493c87cce" />
+
+
 **UNAGI** is a sleek, distraction-free productivity companion built directly into Visual Studio Code. It keeps you in a state of total awareness by tracking your active **Sprints**, **Task Checklists**, **Pending Reminders**, **Scratchpad Notes**, and **Deep Work Focus Timer** without leaving your editor.
 
 ---
