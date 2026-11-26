@@ -3,10 +3,15 @@
   "displayName": "UNAGI - Sprints, Tasks, Notes & Focus",
   "description": "Achieve total workflow awareness: track active sprints, checklists, reminders, scratchpad notes, and focus timer directly in your sidebar.",
   "version": "2.3.0",
-  "publisher": "pixel-studio",
+  "publisher": "BingVader",
+  "icon": "media/Icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/example/vscode-unagi"
+    "url": "https://github.com/BingVader/Unagi.git"
+  },
+  "homepage": "https://github.com/BingVader/Unagi#readme",
+  "bugs": {
+    "url": "https://github.com/BingVader/Unagi/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
