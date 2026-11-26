@@ -124,6 +124,18 @@ Configure UNAGI to match your preferred working rhythm in VS Code Settings (`Ctr
 
 ---
 
+## PREVIEW
+<img width="1919" height="1199" alt="image" src="https://github.com/user-attachments/assets/23771262-8fb2-4973-ad48-2407c3d178cd" />
+
+<img width="839" height="486" alt="image" src="https://github.com/user-attachments/assets/2522462a-f5f2-4ecc-8a83-b58ce56f8d6d" />
+
+<img width="487" height="1199" alt="image" src="https://github.com/user-attachments/assets/d4eed22d-34cd-4a4e-8a2d-49600b0e005a" />
+
+<img width="489" height="879" alt="image" src="https://github.com/user-attachments/assets/38b1d6a4-f884-4cba-8ea1-2b8dc8bf0ac1" />
+
+
+
+
 ## 🛠️ Development & Building
 
 To run and debug the extension locally:
